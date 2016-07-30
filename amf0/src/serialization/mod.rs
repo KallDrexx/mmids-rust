@@ -8,12 +8,12 @@ use markers;
 
 /// Serializes values into an amf0 encoded vector of bytes
 pub fn serialize(values: &Vec<Amf0Value>) -> Vec<u8> {
-    let mut result = vec![];
+    let mut bytes = vec![];
     for value in values {
-        serialize_value(value, &mut result);
+        serialize_value(value, &mut bytes);
     }
 
-    result
+    bytes
 }
 
 fn serialize_value(value: &Amf0Value, bytes: &mut Vec<u8>) {
@@ -26,39 +26,39 @@ fn serialize_value(value: &Amf0Value, bytes: &mut Vec<u8>) {
     }
 }
 
-fn serialize_number(value: &f64, vector: &mut Vec<u8>) {
-    vector.push(markers::NUMBER_MARKER);
-    vector.write_f64::<BigEndian>(value.clone()).unwrap();    
+fn serialize_number(value: &f64, bytes: &mut Vec<u8>) {
+    bytes.push(markers::NUMBER_MARKER);
+    bytes.write_f64::<BigEndian>(value.clone()).unwrap();    
 }
 
-fn serialize_bool(value: &bool, vector: &mut Vec<u8>) {
-    vector.push(markers::BOOLEAN_MARKER);
-    vector.push((value.clone()) as u8);
+fn serialize_bool(value: &bool, bytes: &mut Vec<u8>) {
+    bytes.push(markers::BOOLEAN_MARKER);
+    bytes.push((value.clone()) as u8);
 }
 
-fn serialize_string(value: &String, vector: &mut Vec<u8>) {
+fn serialize_string(value: &String, bytes: &mut Vec<u8>) {
     // TODO: add check if length is > u16
-    vector.push(markers::STRING_MARKER);
-    vector.write_u16::<BigEndian>(value.len() as u16).unwrap();
-    vector.extend(value.as_bytes());
+    bytes.push(markers::STRING_MARKER);
+    bytes.write_u16::<BigEndian>(value.len() as u16).unwrap();
+    bytes.extend(value.as_bytes());
 }
 
-fn serialize_null(vector: &mut Vec<u8>) {
-    vector.push(markers::NULL_MARKER);
+fn serialize_null(bytes: &mut Vec<u8>) {
+    bytes.push(markers::NULL_MARKER);
 }
 
-fn serialize_object(object: &Amf0Object, vector: &mut Vec<u8>) {
-    vector.push(markers::OBJECT_MARKER);
+fn serialize_object(object: &Amf0Object, bytes: &mut Vec<u8>) {
+    bytes.push(markers::OBJECT_MARKER);
 
     for (name, value) in &object.properties {
         // TODO: Add check that property name isn't greater than a u16
-        vector.write_u16::<BigEndian>(name.len() as u16).unwrap();
-        vector.extend(name.as_bytes());
-        serialize_value(&value, vector);
+        bytes.write_u16::<BigEndian>(name.len() as u16).unwrap();
+        bytes.extend(name.as_bytes());
+        serialize_value(&value, bytes);
     }
 
-    vector.write_u16::<BigEndian>(markers::UTF_8_EMPTY_MARKER).unwrap();
-    vector.push(markers::OBJECT_END_MARKER);
+    bytes.write_u16::<BigEndian>(markers::UTF_8_EMPTY_MARKER).unwrap();
+    bytes.push(markers::OBJECT_END_MARKER);
 }
 
 #[cfg(test)]
