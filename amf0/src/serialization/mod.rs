@@ -2,56 +2,73 @@
 //! bytes based on the AMF0 specification 
 //! (http://wwwimages.adobe.com/content/dam/Adobe/en/devnet/amf/pdf/amf0-file-format-specification.pdf)
 
-use super::Amf0Value;
+use super::{Amf0Value, Amf0Object};
 use byteorder::{BigEndian, WriteBytesExt};
-
-const NUMBER_MARKER: u8 = 0;
-const BOOLEAN_MARKER: u8 = 1;
-const STRING_MARKER: u8 = 2;
-const OBJECT_MARKER: u8 = 3;
-const NULL_MARKER: u8 = 5; 
+use markers;
 
 /// Serializes values into an amf0 encoded vector of bytes
 pub fn serialize(values: &Vec<Amf0Value>) -> Vec<u8> {
     let mut result = vec![];
     for value in values {
-        match *value {
-            Amf0Value::Boolean(ref val) => serialize_bool(&val, &mut result),
-            Amf0Value::Null => serialize_null(&mut result),
-            Amf0Value::Number(ref val) => serialize_number(&val, &mut result),
-            Amf0Value::Utf8String(ref val) => serialize_string(&val, &mut result),
-            Amf0Value::Object(_) => panic!("Not Implemented")
-        }
+        serialize_value(value, &mut result);
     }
 
     result
 }
 
+fn serialize_value(value: &Amf0Value, bytes: &mut Vec<u8>) {
+    match *value {
+        Amf0Value::Boolean(ref val) => serialize_bool(&val, bytes),
+        Amf0Value::Null => serialize_null(bytes),
+        Amf0Value::Number(ref val) => serialize_number(&val, bytes),
+        Amf0Value::Utf8String(ref val) => serialize_string(&val, bytes),
+        Amf0Value::Object(ref val) => serialize_object(&val, bytes)
+    }
+}
+
 fn serialize_number(value: &f64, vector: &mut Vec<u8>) {
-    vector.push(NUMBER_MARKER);
+    vector.push(markers::NUMBER_MARKER);
     vector.write_f64::<BigEndian>(value.clone()).unwrap();    
 }
 
 fn serialize_bool(value: &bool, vector: &mut Vec<u8>) {
-    vector.push(BOOLEAN_MARKER);
+    vector.push(markers::BOOLEAN_MARKER);
     vector.push((value.clone()) as u8);
 }
 
 fn serialize_string(value: &String, vector: &mut Vec<u8>) {
-    vector.push(STRING_MARKER);
-    vector.write_u16::<BigEndian>(value.len() as u16).unwrap(); // TODO: add check if length is > u16
+    // TODO: add check if length is > u16
+    vector.push(markers::STRING_MARKER);
+    vector.write_u16::<BigEndian>(value.len() as u16).unwrap();
     vector.extend(value.as_bytes());
 }
 
 fn serialize_null(vector: &mut Vec<u8>) {
-    vector.push(NULL_MARKER);
+    vector.push(markers::NULL_MARKER);
+}
+
+fn serialize_object(object: &Amf0Object, vector: &mut Vec<u8>) {
+    vector.push(markers::OBJECT_MARKER);
+
+    for (name, value) in &object.properties {
+        // TODO: Add check that property name isn't greater than a u16
+        vector.write_u16::<BigEndian>(name.len() as u16).unwrap();
+        vector.extend(name.as_bytes());
+        serialize_value(&value, vector);
+    }
+
+    vector.write_u16::<BigEndian>(markers::UTF_8_EMPTY_MARKER).unwrap();
+    vector.push(markers::OBJECT_END_MARKER);
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::serialize;
     use super::super::Amf0Value;
+    use super::super::Amf0Object;
+    use markers;
     use byteorder::{BigEndian, WriteBytesExt};
+    use std::collections::HashMap;
 
     #[test]
     fn can_serialize_number() {
@@ -61,7 +78,7 @@ mod tests {
         let result = serialize(&input);
 
         let mut expected = vec![];
-        expected.write_u8(super::NUMBER_MARKER).unwrap();
+        expected.write_u8(markers::NUMBER_MARKER).unwrap();
         expected.write_f64::<BigEndian>(number).unwrap();
 
         assert_eq!(result, expected);
@@ -73,7 +90,7 @@ mod tests {
         let result = serialize(&input);
 
         let mut expected = vec![];
-        expected.write_u8(super::BOOLEAN_MARKER).unwrap();
+        expected.write_u8(markers::BOOLEAN_MARKER).unwrap();
         expected.write_u8(1).unwrap();
 
         assert_eq!(result, expected);
@@ -85,7 +102,7 @@ mod tests {
         let result = serialize(&input);
 
         let mut expected = vec![];
-        expected.write_u8(super::BOOLEAN_MARKER).unwrap();
+        expected.write_u8(markers::BOOLEAN_MARKER).unwrap();
         expected.write_u8(0).unwrap();
 
         assert_eq!(result, expected);
@@ -99,7 +116,7 @@ mod tests {
         let result = serialize(&input);
 
         let mut expected = vec![];
-        expected.write_u8(super::STRING_MARKER).unwrap();
+        expected.write_u8(markers::STRING_MARKER).unwrap();
         expected.write_u16::<BigEndian>(value.len() as u16).unwrap();
         expected.extend(value.as_bytes());
 
@@ -112,7 +129,30 @@ mod tests {
         let result = serialize(&input);
 
         let mut expected = vec![];
-        expected.write_u8(super::NULL_MARKER).unwrap();
+        expected.write_u8(markers::NULL_MARKER).unwrap();
+
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn can_serialize_object() {
+        const NUMBER: f64 = 332.0;
+
+        let mut properties = HashMap::new();
+        properties.insert("test".to_string(), Amf0Value::Number(NUMBER));
+
+        let object = Amf0Object {properties: properties};
+        let input = vec![Amf0Value::Object(object)];
+        let result = serialize(&input);
+
+        let mut expected = vec![];
+        expected.push(markers::OBJECT_MARKER);
+        expected.write_u16::<BigEndian>(4).unwrap();
+        expected.extend("test".as_bytes());
+        expected.push(markers::NUMBER_MARKER);
+        expected.write_f64::<BigEndian>(NUMBER).unwrap();
+        expected.write_u16::<BigEndian>(markers::UTF_8_EMPTY_MARKER).unwrap();;
+        expected.push(markers::OBJECT_END_MARKER);
 
         assert_eq!(result, expected);
     }
