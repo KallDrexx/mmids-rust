@@ -1,7 +1,8 @@
 extern crate byteorder;
 
-use std::collections::HashMap;
 pub mod serialization;
+
+use std::collections::HashMap;
 
 pub enum Amf0Value {
     Number(f64),
