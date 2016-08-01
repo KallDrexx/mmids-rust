@@ -2,14 +2,14 @@
 //! bytes based on the AMF0 specification 
 //! (http://wwwimages.adobe.com/content/dam/Adobe/en/devnet/amf/pdf/amf0-file-format-specification.pdf)
 
-use Amf0Value;
-use std::io::Error;
 use std::collections::HashMap;
-use byteorder::{BigEndian, WriteBytesExt};
+use Amf0Value;
+use errors::Amf0SerializationError;
 use markers;
+use byteorder::{BigEndian, WriteBytesExt};
 
 /// Serializes values into an amf0 encoded vector of bytes
-pub fn serialize(values: &Vec<Amf0Value>) -> Result<Vec<u8>, Error> {
+pub fn serialize(values: &Vec<Amf0Value>) -> Result<Vec<u8>, Amf0SerializationError> {
     let mut bytes = vec![];
     for value in values {
         try!(serialize_value(value, &mut bytes));
@@ -18,7 +18,7 @@ pub fn serialize(values: &Vec<Amf0Value>) -> Result<Vec<u8>, Error> {
     Ok(bytes)
 }
 
-fn serialize_value(value: &Amf0Value, bytes: &mut Vec<u8>) -> Result<(), Error> {
+fn serialize_value(value: &Amf0Value, bytes: &mut Vec<u8>) -> Result<(), Amf0SerializationError> {
     match *value {
         Amf0Value::Boolean(ref val) => Ok(serialize_bool(&val, bytes)),
         Amf0Value::Null => Ok(serialize_null(bytes)),
@@ -28,7 +28,7 @@ fn serialize_value(value: &Amf0Value, bytes: &mut Vec<u8>) -> Result<(), Error> 
     }
 }
 
-fn serialize_number(value: &f64, bytes: &mut Vec<u8>) -> Result<(), Error> {
+fn serialize_number(value: &f64, bytes: &mut Vec<u8>) -> Result<(), Amf0SerializationError> {
     bytes.push(markers::NUMBER_MARKER);
     try!(bytes.write_f64::<BigEndian>(value.clone()));
     Ok(())    
@@ -39,8 +39,11 @@ fn serialize_bool(value: &bool, bytes: &mut Vec<u8>) {
     bytes.push((value.clone()) as u8);
 }
 
-fn serialize_string(value: &String, bytes: &mut Vec<u8>) -> Result<(), Error> {
-    // TODO: add check if length is > u16
+fn serialize_string(value: &String, bytes: &mut Vec<u8>) -> Result<(), Amf0SerializationError> {
+    if value.len() > (u16::max_value() as usize) {
+        return Err(Amf0SerializationError::NormalStringTooLong)
+    }
+
     bytes.push(markers::STRING_MARKER);
     try!(bytes.write_u16::<BigEndian>(value.len() as u16));
     bytes.extend(value.as_bytes());
@@ -51,7 +54,7 @@ fn serialize_null(bytes: &mut Vec<u8>) {
     bytes.push(markers::NULL_MARKER);
 }
 
-fn serialize_object(properties: &HashMap<String, Amf0Value>, bytes: &mut Vec<u8>) -> Result<(), Error> {
+fn serialize_object(properties: &HashMap<String, Amf0Value>, bytes: &mut Vec<u8>) -> Result<(), Amf0SerializationError> {
     bytes.push(markers::OBJECT_MARKER);
 
     for (name, value) in properties {
@@ -68,11 +71,13 @@ fn serialize_object(properties: &HashMap<String, Amf0Value>, bytes: &mut Vec<u8>
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use super::serialize;
     use super::super::Amf0Value;
+    use super::super::errors::Amf0SerializationError;
     use markers;
     use byteorder::{BigEndian, WriteBytesExt};
-    use std::collections::HashMap;
+
 
     #[test]
     fn can_serialize_number() {
@@ -158,5 +163,22 @@ mod tests {
         expected.push(markers::OBJECT_END_MARKER);
 
         assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn error_when_string_length_greater_than_u16() {
+        let mut value = String::new();
+        let max = (u16::max_value() as u32) + 1;
+        for _ in 0..max {
+            value.push('a');
+        }
+
+        let input = vec![Amf0Value::Utf8String(value)];
+        let result = serialize(&input);
+
+        assert!(match result { 
+            Err(Amf0SerializationError::NormalStringTooLong) => true, 
+            _ => false}
+        );
     }
 }
