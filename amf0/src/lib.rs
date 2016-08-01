@@ -5,7 +5,7 @@
 //! ```
 //! use std::io::Cursor;
 //! use std::collections::HashMap;
-//! use amf0::{Amf0Value, Amf0Object};
+//! use amf0::Amf0Value;
 //! use amf0::serialization::serialize;
 //! use amf0::deserialization::deserialize;
 //!
@@ -16,7 +16,7 @@
 //!
 //! let value1 = Amf0Value::Number(32.0);
 //! let value2 = Amf0Value::Boolean(true);
-//! let object = Amf0Value::Object(Amf0Object {properties: properties});
+//! let object = Amf0Value::Object(properties);
 //!        
 //! let input = vec![value1, object, value2];        
 //!
@@ -43,13 +43,8 @@ pub enum Amf0Value {
     Number(f64),
     Boolean(bool),
     Utf8String(String),
-    Object(Amf0Object),
+    Object(HashMap<String, Amf0Value>),
     Null,
-}
-
-#[derive(PartialEq, Debug)]
-pub struct Amf0Object {
-    pub properties: HashMap<String, Amf0Value>
 }
 
 mod markers {

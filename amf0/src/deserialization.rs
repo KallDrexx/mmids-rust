@@ -4,7 +4,7 @@
 
 use std::io::Read;
 use std::collections::HashMap;
-use super::{Amf0Value, Amf0Object};
+use super::Amf0Value;
 use super::errors::Amf0DeserializationError;
 use markers;
 use byteorder::{BigEndian, ReadBytesExt};
@@ -102,8 +102,7 @@ fn parse_object(bytes: &mut Read) -> Result<Amf0Value, Amf0DeserializationError>
         };        
     }
 
-    let object = Amf0Object {properties: properties};
-    let deserialized_value = Amf0Value::Object(object);
+    let deserialized_value = Amf0Value::Object(properties);
     Ok(deserialized_value)
 }
 
@@ -112,7 +111,7 @@ mod tests {
     use std::io::Cursor;
     use std::collections::HashMap;
     use super::deserialize;
-    use super::super::{Amf0Value, Amf0Object};
+    use super::super::Amf0Value;
     use markers;
     use byteorder::{BigEndian, WriteBytesExt};
 
@@ -204,8 +203,7 @@ mod tests {
         let mut properties = HashMap::new();
         properties.insert("test".to_string(), Amf0Value::Number(NUMBER));
 
-        let object = Amf0Object {properties: properties};
-        let expected = vec![Amf0Value::Object(object)];
+        let expected = vec![Amf0Value::Object(properties)];
         assert_eq!(result, expected);
     }
 }

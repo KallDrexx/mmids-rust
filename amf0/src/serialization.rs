@@ -2,8 +2,9 @@
 //! bytes based on the AMF0 specification 
 //! (http://wwwimages.adobe.com/content/dam/Adobe/en/devnet/amf/pdf/amf0-file-format-specification.pdf)
 
-use {Amf0Value, Amf0Object};
+use Amf0Value;
 use std::io::Error;
+use std::collections::HashMap;
 use byteorder::{BigEndian, WriteBytesExt};
 use markers;
 
@@ -50,10 +51,10 @@ fn serialize_null(bytes: &mut Vec<u8>) {
     bytes.push(markers::NULL_MARKER);
 }
 
-fn serialize_object(object: &Amf0Object, bytes: &mut Vec<u8>) -> Result<(), Error> {
+fn serialize_object(properties: &HashMap<String, Amf0Value>, bytes: &mut Vec<u8>) -> Result<(), Error> {
     bytes.push(markers::OBJECT_MARKER);
 
-    for (name, value) in &object.properties {
+    for (name, value) in properties {
         // TODO: Add check that property name isn't greater than a u16
         try!(bytes.write_u16::<BigEndian>(name.len() as u16));
         bytes.extend(name.as_bytes());
@@ -69,7 +70,6 @@ fn serialize_object(object: &Amf0Object, bytes: &mut Vec<u8>) -> Result<(), Erro
 mod tests {
     use super::serialize;
     use super::super::Amf0Value;
-    use super::super::Amf0Object;
     use markers;
     use byteorder::{BigEndian, WriteBytesExt};
     use std::collections::HashMap;
@@ -145,8 +145,7 @@ mod tests {
         let mut properties = HashMap::new();
         properties.insert("test".to_string(), Amf0Value::Number(NUMBER));
 
-        let object = Amf0Object {properties: properties};
-        let input = vec![Amf0Value::Object(object)];
+        let input = vec![Amf0Value::Object(properties)];
         let result = serialize(&input).unwrap();
 
         let mut expected = vec![];
