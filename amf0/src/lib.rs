@@ -1,9 +1,12 @@
 extern crate byteorder;
 
 pub mod serialization;
+pub mod deserialization;
+pub mod errors;
 
 use std::collections::HashMap;
 
+#[derive(PartialEq, Debug)]
 pub enum Amf0Value {
     Number(f64),
     Boolean(bool),
@@ -12,6 +15,7 @@ pub enum Amf0Value {
     Null,
 }
 
+#[derive(PartialEq, Debug)]
 pub struct Amf0Object {
     properties: HashMap<String, Amf0Value>
 }
