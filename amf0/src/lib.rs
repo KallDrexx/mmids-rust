@@ -30,6 +30,8 @@
 //! assert_eq!(input, results);
 //! ```
 
+#[macro_use] extern crate quick_error;
+
 extern crate byteorder;
 
 pub mod serialization;
