@@ -28,6 +28,7 @@ enum ChunkHeaderFormat {
 struct ChunkHeader {
     chunk_stream_id: u32,
     timestamp: u32,
+    timestamp_delta: u32,
     message_length: u32, 
     message_type_id: u8,
     message_stream_id: u32
