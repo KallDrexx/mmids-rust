@@ -20,6 +20,22 @@ pub struct Serializer {
     max_chunk_size: u32
 }
 
+quick_error! {
+    #[derive(Debug)]
+    pub enum SerializationError {
+        MessageTooLong {
+            description("An individaul RTMP message can not be larger than 16777215 bytes")
+        }
+
+        Io(err: io::Error) {
+            cause(err)
+            description(err.description())
+            from()
+        }
+    }
+}
+
+
 impl Serializer {
     pub fn new() -> Serializer {
         Serializer {
@@ -198,21 +214,6 @@ fn get_header_format(current_header: &mut ChunkHeader, previous_header: &ChunkHe
     }
 
     ChunkHeaderFormat::Empty  
-}
-
-quick_error! {
-    #[derive(Debug)]
-    pub enum SerializationError {
-        MessageTooLong {
-            description("An individaul RTMP message can not be larger than 16777215 bytes")
-        }
-
-        Io(err: io::Error) {
-            cause(err)
-            description(err.description())
-            from()
-        }
-    }
 }
 
 #[cfg(test)]
