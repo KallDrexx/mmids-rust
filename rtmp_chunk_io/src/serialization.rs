@@ -41,12 +41,13 @@ impl Serializer {
         let header_format = ChunkHeaderFormat::Full;
 
         let mut bytes = Cursor::new(Vec::new());
-        try!(add_basic_header(&mut bytes, &header_format, header.chunk_stream_id));
-        try!(add_initial_timestamp(&mut bytes, &header_format, header.timestamp));
-        try!(add_message_length_and_type_id(&mut bytes, &header_format, header.message_length, header.message_type_id));
-        try!(add_message_stream_id(&mut bytes, &header_format, header.message_stream_id));
-        try!(add_extended_timestamp(&mut bytes, &header_format, header.timestamp));
-        try!(add_message_payload(&mut bytes, &message.data));
+
+        try!(add_basic_header(&mut bytes, &header_format, header.chunk_stream_id)
+              .and_then(|_| add_initial_timestamp(&mut bytes, &header_format, header.timestamp))
+              .and_then(|_| add_message_length_and_type_id(&mut bytes, &header_format, header.message_length, header.message_type_id))
+              .and_then(|_| add_message_stream_id(&mut bytes, &header_format, header.message_stream_id))
+              .and_then(|_| add_extended_timestamp(&mut bytes, &header_format, header.timestamp))
+              .and_then(|_| add_message_payload(&mut bytes, &message.data)));
 
         Ok(bytes.into_inner())
     }
