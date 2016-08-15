@@ -11,11 +11,23 @@ use std::io::{Read, Cursor, Result, Seek, SeekFrom};
 use byteorder::{BigEndian, WriteBytesExt, ReadBytesExt};
 
 /// Represents a complete (but raw) RTMP message
+#[derive(PartialEq, Debug)]
 pub struct MessagePayload {
     pub timestamp: u32,
     pub type_id: u8,
     pub stream_id: u32,
     pub data: Vec<u8>
+}
+
+impl MessagePayload {
+    fn new() -> MessagePayload {
+        MessagePayload {
+            timestamp: 0,
+            type_id: 0,
+            stream_id: 0,
+            data: Vec::new()
+        }
+    }
 }
 
 #[derive(PartialEq)]

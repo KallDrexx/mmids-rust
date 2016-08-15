@@ -2,6 +2,7 @@ use std::io;
 use std::io::{Cursor, Write};
 use std::collections::HashMap;
 use std::mem;
+use std::cmp::min;
 use super::{MessagePayload, ChunkHeaderFormat, ChunkHeader};
 use super::read_u24_be;
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
@@ -15,11 +16,12 @@ use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 /// be used for all data that is received from the peer.
 pub struct Deserializer {
     previous_headers: HashMap<u32, ChunkHeader>,
-    //max_chunk_size: u32,
+    max_chunk_size: u32,
     buffer: Vec<u8>,
     current_header: ChunkHeader,
     current_header_format: ChunkHeaderFormat,
     current_stage: ParseStage,
+    current_payload: MessagePayload
 }
 
 const MAX_INITIAL_TIMESTAMP: u32 = 16777215;
@@ -64,12 +66,17 @@ impl Deserializer {
     pub fn new() -> Deserializer {
         Deserializer {
             previous_headers: HashMap::new(),
-            //max_chunk_size: 128,
+            max_chunk_size: 128,
             buffer: Vec::new(),
             current_header: ChunkHeader::new(),
             current_header_format: ChunkHeaderFormat::Full,
-            current_stage: ParseStage::Csid
+            current_stage: ParseStage::Csid,
+            current_payload: MessagePayload::new(),
         }
+    }
+
+    pub fn set_max_chunk_size(&mut self, new_size: u32) {
+        self.max_chunk_size = new_size;
     }
 
     pub fn process_bytes(&mut self, bytes: &Vec<u8>) -> Result<Vec<MessagePayload>, DeserializationError> {
@@ -129,6 +136,7 @@ impl Deserializer {
 
     fn get_initial_timestamp(&mut self) -> Result<ParseResult, DeserializationError> {
         if self.current_header_format == ChunkHeaderFormat::Empty {
+            self.current_header.timestamp = self.current_header.timestamp + self.current_header.timestamp_delta;
             self.current_stage = ParseStage::MessageLength;
             return Ok(ParseResult::Success);
         }
@@ -251,24 +259,29 @@ impl Deserializer {
     }
 
     fn get_message_data(&mut self, results: &mut Vec<MessagePayload>) -> Result<ParseResult, DeserializationError> {
-        let length = self.current_header.message_length as usize;
+        let mut length = self.current_header.message_length as usize;
+        if length > self.max_chunk_size as usize {
+            let current_payload_length = self.current_payload.data.len();
+            let remaining_bytes = length - current_payload_length;
+            length = min(remaining_bytes, self.max_chunk_size as usize);
+        }
+
         if self.buffer.len() < length {
             return Ok(ParseResult::NotEnoughBytes);
         }
 
-        let mut data = Vec::new();
+        self.current_payload.timestamp = self.current_header.timestamp;
+        self.current_payload.type_id = self.current_header.message_type_id;
+        self.current_payload.stream_id = self.current_header.message_stream_id;        
+
         for byte in self.buffer.drain(0..(length as usize)) {
-            data.push(byte);
+            self.current_payload.data.push(byte);
         }
 
-        let payload = MessagePayload {
-            timestamp: self.current_header.timestamp,
-            type_id: self.current_header.message_type_id,
-            stream_id: self.current_header.message_stream_id,
-            data: data
-        };
-
-        results.push(payload);
+        if self.current_payload.data.len() == self.current_header.message_length as usize {
+            let payload = mem::replace(&mut self.current_payload, MessagePayload::new());
+            results.push(payload);
+        }
 
         let current_header = mem::replace(&mut self.current_header, ChunkHeader::new());
         self.previous_headers.insert(current_header.chunk_stream_id, current_header);
@@ -419,8 +432,150 @@ mod tests {
         assert_eq!(payload2, result[0].data);
     }
 
+    #[test]
+    fn can_read_full_type_2_chunk() {
+        let csid = 50;
+        let timestamp = 20;
+        let delta1 = 10;
+        let delta2 = 12;
+        let message_stream_id = 52;
+        let type_id = 3;
+        let payload1 = vec![1, 2, 3];
+        let payload2 = vec![1, 2, 3];
+        let payload3 = vec![2, 2, 2];
+
+        let chunk_0_bytes = get_type_0_chunk(csid, timestamp, message_stream_id, type_id, payload1);        
+        let chunk_1_bytes = get_type_1_chunk(csid, delta1, type_id, payload2);
+        let chunk_2_bytes = get_type_2_chunk(csid, delta2, payload3);
+
+        let mut deserializer = Deserializer::new();
+        deserializer.process_bytes(&chunk_0_bytes).unwrap();
+        deserializer.process_bytes(&chunk_1_bytes).unwrap();
+
+        let result = deserializer.process_bytes(&chunk_2_bytes).unwrap();
+
+        assert_eq!(1, result.len());
+        assert_eq!(timestamp + delta1 + delta2, result[0].timestamp);
+        assert_eq!(type_id, result[0].type_id);
+        assert_eq!(message_stream_id, result[0].stream_id);
+        assert_eq!(vec![2, 2, 2], result[0].data);
+    }
+
+    #[test]
+    fn can_read_full_type_3_chunk() {
+        let csid = 50;
+        let timestamp = 20;
+        let delta1 = 10;
+        let delta2 = 12;
+        let message_stream_id = 52;
+        let type_id = 3;
+        let payload1 = vec![1, 2, 3];
+        let payload2 = vec![1, 2, 3];
+        let payload3 = vec![2, 2, 2];
+        let payload4 = vec![4, 4, 4];
+
+        let chunk_0_bytes = get_type_0_chunk(csid, timestamp, message_stream_id, type_id, payload1);        
+        let chunk_1_bytes = get_type_1_chunk(csid, delta1, type_id, payload2);
+        let chunk_2_bytes = get_type_2_chunk(csid, delta2, payload3);
+        let chunk_3_bytes = get_type_3_chunk(csid, payload4);
+
+        let mut deserializer = Deserializer::new();
+        deserializer.process_bytes(&chunk_0_bytes).unwrap();
+        deserializer.process_bytes(&chunk_1_bytes).unwrap();
+        deserializer.process_bytes(&chunk_2_bytes).unwrap();
+
+        let result = deserializer.process_bytes(&chunk_3_bytes).unwrap();
+
+        assert_eq!(1, result.len());
+        assert_eq!(timestamp + delta1 + delta2 + delta2, result[0].timestamp);
+        assert_eq!(type_id, result[0].type_id);
+        assert_eq!(message_stream_id, result[0].stream_id);
+        assert_eq!(vec![4, 4, 4], result[0].data);
+    }
+    
+    #[test]
+    fn can_read_single_chunk_spread_across_multiple_calls() {
+        let csid = 50u8;
+        let timestamp = 25u32;
+        let message_stream_id = 5u32;
+        let type_id = 3;
+        let payload = vec![1, 2, 3];
+
+        let mut full_chunk = get_type_0_chunk(csid, timestamp, message_stream_id, type_id, payload);
+        let mut first_half = Vec::new();
+        let mut second_half = Vec::new();
+        let halfway_index = full_chunk.len() / 2;
+
+        for byte in full_chunk.drain(0..halfway_index) {
+            first_half.push(byte);
+        }
+
+        for byte in full_chunk.drain(..) {
+            second_half.push(byte);
+        }
+
+        let mut deserializer = Deserializer::new();
+        let result1 = deserializer.process_bytes(&first_half).unwrap();
+        let result2 = deserializer.process_bytes(&second_half).unwrap();
+
+        assert_eq!(0, result1.len());
+        assert_eq!(1, result2.len());
+        assert_eq!(timestamp, result2[0].timestamp);
+        assert_eq!(type_id, result2[0].type_id);
+        assert_eq!(message_stream_id, result2[0].stream_id);
+        assert_eq!(vec![1, 2, 3], result2[0].data);
+    }
+
+    #[test]
+    fn can_read_messages_larger_than_max_chunk_size() {
+        let csid = 50;
+        let timestamp = 20;
+        let message_stream_id = 52;
+        let type_id = 3;
+        let payload1 = vec![1, 1, 1];
+        let payload2 = vec![2, 2, 2];
+
+        let mut chunk_0_bytes = get_type_0_chunk(csid, timestamp, message_stream_id, type_id, payload1);        
+        let chunk_3_bytes = get_type_3_chunk(csid, payload2);
+        chunk_0_bytes[6] = 6;
+
+        let mut deserializer = Deserializer::new();
+        deserializer.set_max_chunk_size(3);
+        let result1 = deserializer.process_bytes(&chunk_0_bytes).unwrap();
+        let result2 = deserializer.process_bytes(&chunk_3_bytes).unwrap();
+
+        assert_eq!(0, result1.len());
+        assert_eq!(1, result2.len());
+        assert_eq!(timestamp, result2[0].timestamp);
+        assert_eq!(type_id, result2[0].type_id);
+        assert_eq!(message_stream_id, result2[0].stream_id);
+        assert_eq!(vec![1, 1, 1, 2, 2, 2], result2[0].data);
+
+    }
+
     fn get_type_0_chunk(csid: u8, timestamp: u32, message_stream_id: u32, type_id: u8, payload: Vec<u8>) -> Vec<u8> {
         let mut bytes = vec![csid, 0, 0, timestamp as u8, 0, 0, payload.len() as u8, type_id, message_stream_id as u8, 0, 0, 0];
+        bytes.write(&payload).unwrap();
+
+        bytes
+    }
+
+    fn get_type_1_chunk(csid: u8, delta: u32, type_id: u8, payload: Vec<u8>) -> Vec<u8> {
+        let mut bytes = vec![csid | 0b01000000, 0, 0, delta as u8, 0, 0, payload.len() as u8, type_id];
+        bytes.write(&payload).unwrap();
+
+        bytes
+    }
+
+    fn get_type_2_chunk(csid: u8, delta: u32, payload: Vec<u8>) -> Vec<u8> {
+        let mut bytes = vec![csid | 0b10000000, 0, 0, delta as u8];
+        bytes.write(&payload).unwrap();
+
+        bytes
+    } 
+
+    fn get_type_3_chunk(csid: u8, payload: Vec<u8>) -> Vec<u8> {
+        let mut bytes = vec![csid | 0b11000000];
         bytes.write(&payload).unwrap();
 
         bytes
