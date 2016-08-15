@@ -35,6 +35,19 @@ struct ChunkHeader {
     message_stream_id: u32
 }
 
+impl ChunkHeader {
+    fn new() -> ChunkHeader {
+        ChunkHeader {
+            chunk_stream_id: 0,
+            timestamp: 0,
+            timestamp_delta: 0,
+            message_length: 0, 
+            message_type_id: 0,
+            message_stream_id: 0
+        }
+    }
+}
+
 fn write_u24_be(cursor: &mut Cursor<Vec<u8>>, value: u32) -> Result<()> {
     debug_assert!(value <= 16777215, "Value is greater than what can fit in 3 bytes");
 
