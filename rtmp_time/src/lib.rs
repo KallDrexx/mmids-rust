@@ -18,10 +18,14 @@
 //! let time1 = RtmpTimestamp::new(10);
 //! let time2 = RtmpTimestamp::new(20);
 //! let time3 = RtmpTimestamp::new(30);
+//! let mut time4 = RtmpTimestamp::new(10);
 //!
-//! assert_eq!(time3, time1 + time2);
 //! assert!(time1 < time2);
+//! assert_eq!(time3, time1 + time2);
 //! assert_eq!(time2, time1 + 10);
+//!
+//! time4.set(30);
+//! assert_eq!(RtmpTimestamp::new(30), time4);
 //! ```
 //!
 //! Value Wrapping support:
@@ -35,6 +39,18 @@
 //!
 //! assert!(time1 > time2);
 //! assert!(time3 < time2);
+//! ```
+//! 
+//! For ease of use, a `RtmpTimestamp` can be directly compared to u32s:
+//!
+//! ```
+//! use rtmp_time::RtmpTimestamp;
+//!
+//! let time = RtmpTimestamp::new(50);
+//!
+//! assert!(time < 60);
+//! assert!(time > 20);
+//! assert!(time == 50);
 //! ```
 
 use std::ops::{Add, Sub};
@@ -51,6 +67,10 @@ impl RtmpTimestamp {
         RtmpTimestamp {
             value: initial_value
         }
+    }
+
+    pub fn set(&mut self, new_value: u32) {
+        self.value = new_value;
     }
 }
 
@@ -95,6 +115,30 @@ impl Ord for RtmpTimestamp {
 impl PartialOrd for RtmpTimestamp {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(compare(&self.value, &other.value))
+    }
+}
+
+impl PartialEq<u32> for RtmpTimestamp {
+    fn eq(&self, other: &u32) -> bool {
+        self.value == *other
+    }
+}
+
+impl PartialEq<RtmpTimestamp> for u32 {
+    fn eq(&self, other: &RtmpTimestamp) -> bool {
+        self == &other.value
+    }
+}
+
+impl PartialOrd<u32> for RtmpTimestamp {
+    fn partial_cmp(&self, other: &u32) -> Option<Ordering> {
+        Some(compare(&self.value, other))
+    }
+}
+
+impl PartialOrd<RtmpTimestamp> for u32 {
+    fn partial_cmp(&self, other: &RtmpTimestamp) -> Option<Ordering> {
+        Some(compare(&self, &other.value))
     }
 }
 
@@ -208,5 +252,22 @@ mod tests {
 
         assert!(time1 > time2, "10000 was not marked as greater than 4000000000");
         assert!(time3 < time2, "4000000000 was not marked greater than 3000000000");
+    }
+
+    #[test]
+    fn can_compare_timestamps_with_u32() {
+        let time1 = RtmpTimestamp::new(50);
+
+        assert!(time1 < 60, "time1 was not less than 60");
+        assert!(time1 > 20, "time1 was not greater than 20");
+        assert!(time1 == 50, "time1 was not equal to 50");
+    }
+
+    #[test]
+    fn can_set_timestamp_value() {
+        let mut time = RtmpTimestamp::new(50);
+        time.set(60);
+
+        assert_eq!(time, 60);
     }
 }

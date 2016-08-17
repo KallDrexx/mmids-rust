@@ -3,6 +3,7 @@ use std::io;
 use std::io::{Cursor, Write};
 use std::collections::HashMap;
 use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
+use rtmp_time::RtmpTimestamp;
 use super::{ChunkHeader, ChunkHeaderFormat, MessagePayload};
 use super::{write_u24_be};
 
@@ -148,12 +149,12 @@ fn add_basic_header(bytes: &mut Write, format: &ChunkHeaderFormat, csid: u32) ->
     Ok(())
 }
 
-fn add_initial_timestamp(bytes: &mut Cursor<Vec<u8>>, format: &ChunkHeaderFormat, timestamp: u32) -> Result<(), SerializationError> {
+fn add_initial_timestamp(bytes: &mut Cursor<Vec<u8>>, format: &ChunkHeaderFormat, timestamp: RtmpTimestamp) -> Result<(), SerializationError> {
     if *format == ChunkHeaderFormat::Empty {
         return Ok(());
     }
 
-    let timestamp_to_write = min(timestamp, MAX_INITIAL_TIMESTAMP);
+    let timestamp_to_write = min(timestamp.value, MAX_INITIAL_TIMESTAMP);
     try!(write_u24_be(bytes, timestamp_to_write));
 
     Ok(())
@@ -178,7 +179,7 @@ fn add_message_stream_id(bytes: &mut Write, format: &ChunkHeaderFormat, stream_i
     Ok(())
 }
 
-fn add_extended_timestamp(bytes: &mut Write, format: &ChunkHeaderFormat, timestamp: u32) -> Result<(), SerializationError> {
+fn add_extended_timestamp(bytes: &mut Write, format: &ChunkHeaderFormat, timestamp: RtmpTimestamp) -> Result<(), SerializationError> {
     if *format == ChunkHeaderFormat::Empty {
         return Ok(());
     }
@@ -187,7 +188,7 @@ fn add_extended_timestamp(bytes: &mut Write, format: &ChunkHeaderFormat, timesta
         return Ok(());
     } 
 
-    try!(bytes.write_u32::<BigEndian>(timestamp));
+    try!(bytes.write_u32::<BigEndian>(timestamp.value));
     Ok(())
 }
 
@@ -203,7 +204,7 @@ fn get_header_format(current_header: &mut ChunkHeader, previous_header: &ChunkHe
 
     // TODO: Update to support rtmp time wrap-around
     let time_delta = current_header.timestamp - previous_header.timestamp;
-    current_header.timestamp_delta = time_delta;
+    current_header.timestamp_delta = time_delta.value;
 
     if current_header.message_type_id != previous_header.message_type_id || current_header.message_length != previous_header.message_length {
         return ChunkHeaderFormat::TimeDeltaWithoutMessageStreamId;
@@ -221,11 +222,12 @@ mod tests {
     use super::*;
     use super::get_csid_for_message_type;
     use super::super::*;
+    use rtmp_time::RtmpTimestamp;
 
     #[test]
     fn first_message_for_csid_encodes_full_chunk() {
         let mut message = MessagePayload {
-            timestamp: 72,
+            timestamp: RtmpTimestamp::new(72),
             type_id: 5,
             data: vec![1, 2, 3],
             stream_id: 1
@@ -236,7 +238,7 @@ mod tests {
 
         let expected_csid = get_csid_for_message_type(message.type_id); 
         let mut expected = vec![
-            expected_csid as u8, 0, 0, message.timestamp as u8, 0, 0, 
+            expected_csid as u8, 0, 0, message.timestamp.value as u8, 0, 0, 
             message.data.len() as u8, message.type_id, message.stream_id as u8, 0, 0, 0
         ];
 
@@ -248,14 +250,14 @@ mod tests {
     #[test]
     fn second_chunk_with_same_sid_but_different_message_length() {
         let message1 = MessagePayload {
-            timestamp: 72,
+            timestamp: RtmpTimestamp::new(72),
             type_id: 5,
             data: vec![1, 2, 3],
             stream_id: 1
         };
 
         let mut message2 = MessagePayload {
-            timestamp: 82,
+            timestamp: RtmpTimestamp::new(82),
             type_id: 5,
             data: vec![1, 2],
             stream_id: 1
@@ -268,7 +270,7 @@ mod tests {
 
         let expected_csid = get_csid_for_message_type(message2.type_id) | 0b01000000; 
         let mut expected = vec![
-            expected_csid as u8, 0, 0, message2.timestamp as u8, 0, 0, 
+            expected_csid as u8, 0, 0, message2.timestamp.value as u8, 0, 0, 
             message2.data.len() as u8, message2.type_id,
         ];
 
@@ -279,14 +281,14 @@ mod tests {
     #[test]
     fn second_chunk_with_same_sid_message_length_and_type_id() {
         let message1 = MessagePayload {
-            timestamp: 72,
+            timestamp: RtmpTimestamp::new(72),
             type_id: 5,
             data: vec![1, 2, 3],
             stream_id: 1
         };
 
         let mut message2 = MessagePayload {
-            timestamp: 82,
+            timestamp: RtmpTimestamp::new(82),
             type_id: 5,
             data: vec![1, 2, 3],
             stream_id: 1
@@ -299,7 +301,7 @@ mod tests {
 
         let expected_csid = get_csid_for_message_type(message2.type_id) | 0b10000000; 
         let mut expected = vec![
-            expected_csid as u8, 0, 0, message2.timestamp as u8
+            expected_csid as u8, 0, 0, message2.timestamp.value as u8
         ];
 
         expected.append(&mut message2.data);
@@ -309,21 +311,21 @@ mod tests {
     #[test]
     fn third_chunk_same_everything() {
         let message1 = MessagePayload {
-            timestamp: 72,
+            timestamp: RtmpTimestamp::new(72),
             type_id: 5,
             data: vec![1, 2, 3],
             stream_id: 1
         };
 
         let message2 = MessagePayload {
-            timestamp: 82,
+            timestamp: RtmpTimestamp::new(82),
             type_id: 5,
             data: vec![1, 2, 3],
             stream_id: 1
         };
         
         let mut message3 = MessagePayload {
-            timestamp: 92,
+            timestamp: RtmpTimestamp::new(92),
             type_id: 5,
             data: vec![1, 2, 3],
             stream_id: 1
@@ -345,14 +347,14 @@ mod tests {
     #[test]
     fn can_force_uncompressed_serialization() {
         let message1 = MessagePayload {
-            timestamp: 72,
+            timestamp: RtmpTimestamp::new(72),
             type_id: 5,
             data: vec![1, 2, 3],
             stream_id: 1
         };
 
         let mut message2 = MessagePayload {
-            timestamp: 82,
+            timestamp: RtmpTimestamp::new(82),
             type_id: 5,
             data: vec![1, 2, 3],
             stream_id: 1
@@ -365,7 +367,7 @@ mod tests {
 
         let expected_csid = get_csid_for_message_type(message2.type_id); 
         let mut expected = vec![
-            expected_csid as u8, 0, 0, message2.timestamp as u8, 0, 0, 
+            expected_csid as u8, 0, 0, message2.timestamp.value as u8, 0, 0, 
             message2.data.len() as u8, message2.type_id, message2.stream_id as u8, 0, 0, 0
         ];
 
@@ -376,7 +378,7 @@ mod tests {
     #[test]
     fn messages_larger_than_max_chunk_size_are_split() {
         let message = MessagePayload {
-            timestamp: 72,
+            timestamp: RtmpTimestamp::new(72),
             type_id: 5,
             data: vec![1, 2, 3],
             stream_id: 1
@@ -390,7 +392,7 @@ mod tests {
         let expected_csid1 = get_csid_for_message_type(message.type_id);
         let expected_csid2 = get_csid_for_message_type(message.type_id) | 0b11000000; 
         let expected = vec![
-            expected_csid1 as u8, 0, 0, message.timestamp as u8, 0, 0, 
+            expected_csid1 as u8, 0, 0, message.timestamp.value as u8, 0, 0, 
             message.data.len() as u8, message.type_id, message.stream_id as u8, 0, 0, 0, 1, 2,
             expected_csid2 as u8, 3
         ];

@@ -152,7 +152,7 @@ impl Deserializer {
         }
         
         if self.current_header_format == ChunkHeaderFormat::Full {
-            self.current_header.timestamp = timestamp;
+            self.current_header.timestamp.set(timestamp);
         } else {
             // Non full headers are deltas only
             self.current_header.timestamp = self.current_header.timestamp + timestamp;
@@ -245,7 +245,7 @@ impl Deserializer {
         }
 
         if self.current_header_format == ChunkHeaderFormat::Full {
-            self.current_header.timestamp = timestamp;
+            self.current_header.timestamp.set(timestamp);
         } else {
             self.current_header.timestamp_delta = timestamp;
 
