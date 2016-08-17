@@ -1,0 +1,6 @@
+[package]
+name = "rtmp_time"
+version = "0.1.0"
+authors = ["KallDrexx <me@mshapiro.net>"]
+
+[dependencies]
