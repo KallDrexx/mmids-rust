@@ -4,6 +4,7 @@
 #[macro_use] extern crate quick_error;
 extern crate byteorder;
 extern crate rtmp_time;
+extern crate rtmp_message;
 
 pub mod serialization;
 pub mod deserialization;   
@@ -11,26 +12,6 @@ pub mod deserialization;
 use std::io::{Read, Cursor, Result, Seek, SeekFrom};
 use byteorder::{BigEndian, WriteBytesExt, ReadBytesExt};
 use rtmp_time::RtmpTimestamp;
-
-/// Represents a complete (but raw) RTMP message
-#[derive(PartialEq, Debug)]
-pub struct MessagePayload {
-    pub timestamp: RtmpTimestamp,
-    pub type_id: u8,
-    pub stream_id: u32,
-    pub data: Vec<u8>
-}
-
-impl MessagePayload {
-    fn new() -> MessagePayload {
-        MessagePayload {
-            timestamp: RtmpTimestamp::new(0),
-            type_id: 0,
-            stream_id: 0,
-            data: Vec::new()
-        }
-    }
-}
 
 #[derive(PartialEq)]
 enum ChunkHeaderFormat {

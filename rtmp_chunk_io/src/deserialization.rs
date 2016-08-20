@@ -3,9 +3,10 @@ use std::io::{Cursor, Write};
 use std::collections::HashMap;
 use std::mem;
 use std::cmp::min;
-use super::{MessagePayload, ChunkHeaderFormat, ChunkHeader};
+use super::{ChunkHeaderFormat, ChunkHeader};
 use super::read_u24_be;
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
+use rtmp_message::MessagePayload;
 
 /// Allows deserializing bytes representing RTMP chunks into RTMP message payloads.
 /// Note that it all operations against the Deserializer are mutable due to
