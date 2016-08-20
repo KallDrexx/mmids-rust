@@ -4,9 +4,10 @@ use std::io::{Cursor, Write};
 use std::collections::HashMap;
 use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
 use rtmp_time::RtmpTimestamp;
-use super::{ChunkHeader, ChunkHeaderFormat};
-use super::{write_u24_be};
 use rtmp_message::MessagePayload;
+
+use chunk_header::{ChunkHeader, ChunkHeaderFormat};
+use utils::{write_u24_be};
 
 const MAX_INITIAL_TIMESTAMP: u32 = 16777215;
 

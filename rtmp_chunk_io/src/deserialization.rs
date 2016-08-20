@@ -3,10 +3,11 @@ use std::io::{Cursor, Write};
 use std::collections::HashMap;
 use std::mem;
 use std::cmp::min;
-use super::{ChunkHeaderFormat, ChunkHeader};
-use super::read_u24_be;
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 use rtmp_message::MessagePayload;
+
+use chunk_header::{ChunkHeaderFormat, ChunkHeader};
+use utils::read_u24_be;
 
 /// Allows deserializing bytes representing RTMP chunks into RTMP message payloads.
 /// Note that it all operations against the Deserializer are mutable due to
@@ -337,7 +338,7 @@ fn get_csid(buffer: &Vec<u8>) -> ParsedValue<u32> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::Deserializer;
     use std::io::Write;
 
     #[test]
