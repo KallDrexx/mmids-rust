@@ -3,7 +3,7 @@ use std::io;
 quick_error! {
     #[derive(Debug)]
     pub enum MessageDeserializationError {
-        InvalidMessageFormaat {
+        InvalidMessageFormat {
             description("The message is not encoded as expected")
         }
         

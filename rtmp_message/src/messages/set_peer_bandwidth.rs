@@ -24,7 +24,7 @@ impl RtmpMessage for SetPeerBandwidthMessage {
             0 => PeerBandwidthLimitType::Hard,
             1 => PeerBandwidthLimitType::Soft,
             2 => PeerBandwidthLimitType::Dynamic,
-            _ => return Err(MessageDeserializationError::InvalidMessageFormaat)
+            _ => return Err(MessageDeserializationError::InvalidMessageFormat)
         };
 
         Ok(SetPeerBandwidthMessage{

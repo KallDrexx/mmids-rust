@@ -19,7 +19,7 @@ impl RtmpMessage for SetChunkSizeMessage {
         let size = try!(cursor.read_u32::<BigEndian>());
 
         if size > MAX_SIZE {
-            return Err(MessageDeserializationError::InvalidMessageFormaat);
+            return Err(MessageDeserializationError::InvalidMessageFormat);
         }
 
         Ok(SetChunkSizeMessage{
