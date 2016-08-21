@@ -5,9 +5,7 @@
 //! ```
 //! use std::io::Cursor;
 //! use std::collections::HashMap;
-//! use amf0::Amf0Value;
-//! use amf0::serialization::serialize;
-//! use amf0::deserialization::deserialize;
+//! use amf0::{Amf0Value, serialize, deserialize};
 //!
 //! // Put some data into the Amf0Value types
 //! let mut properties = HashMap::new();
@@ -33,9 +31,13 @@
 #[macro_use] extern crate quick_error;
 extern crate byteorder;
 
-pub mod serialization;
-pub mod deserialization;
-pub mod errors;
+mod serialization;
+mod deserialization;
+mod errors;
+
+pub use serialization::serialize;
+pub use deserialization::deserialize;
+pub use errors::{Amf0DeserializationError, Amf0SerializationError};
 
 use std::collections::HashMap;
 
