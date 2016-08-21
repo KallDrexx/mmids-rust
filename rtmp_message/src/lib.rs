@@ -16,6 +16,8 @@ mod errors;
 
 pub mod messages {
     mod abort;
+    mod acknowledgement;
 
     pub use self::abort::AbortMessage;
+    pub use self::acknowledgement::AcknowledgementMessage;
 }
