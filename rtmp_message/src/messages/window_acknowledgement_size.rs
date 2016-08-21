@@ -5,30 +5,31 @@ use errors::MessageDeserializationError;
 use errors::MessageSerializationError;
 use RtmpMessage;
 
-/// Sent when the peer has received bytes equal to the window size
+/// Sent to inform the peer of a change in how much data should be received before
+/// the sender expects an acknowledgement sent back
 #[derive(Eq, PartialEq, Debug)]
-pub struct AcknowledgementMessage {
-    pub sequence_number: u32
+pub struct WindowAcknowledgementSizeMessage {
+    pub size: u32
 }
 
-impl RtmpMessage for AcknowledgementMessage {
+impl RtmpMessage for WindowAcknowledgementSizeMessage {
     fn deserialize(data: Vec<u8>) -> Result<Self, MessageDeserializationError> {
         let mut cursor = Cursor::new(data);
-        let sequence_number = try!(cursor.read_u32::<BigEndian>());
+        let size = try!(cursor.read_u32::<BigEndian>());
 
-        Ok(AcknowledgementMessage{
-            sequence_number: sequence_number
+        Ok(WindowAcknowledgementSizeMessage{
+            size: size
         })
     }
 
     fn serialize(self) -> Result<Vec<u8>, MessageSerializationError> {
         let mut cursor = Cursor::new(Vec::new());
-        try!(cursor.write_u32::<BigEndian>(self.sequence_number));
+        try!(cursor.write_u32::<BigEndian>(self.size));
 
         Ok(cursor.into_inner())
     }
 
-    fn get_type_id() -> u8 { 3 }
+    fn get_type_id() -> u8 { 2 }
 }
 
 
@@ -37,17 +38,17 @@ mod tests {
     use std::io::Cursor;
     use byteorder::{BigEndian, WriteBytesExt};    
     
-    use super::AcknowledgementMessage;
+    use super::WindowAcknowledgementSizeMessage;
     use rtmp_message::RtmpMessage;
 
     #[test]
     fn can_serialize_message() {
-        let number = 523;
-        let message = AcknowledgementMessage { sequence_number: number };
+        let size = 523;
+        let message = WindowAcknowledgementSizeMessage { size: size };
         let result = message.serialize().unwrap();
 
         let mut cursor = Cursor::new(Vec::new());
-        cursor.write_u32::<BigEndian>(number).unwrap();
+        cursor.write_u32::<BigEndian>(size).unwrap();
         let expected = cursor.into_inner();
 
         assert_eq!(expected, result);
@@ -55,18 +56,18 @@ mod tests {
 
     #[test]
     fn can_deserialize_message() {
-        let number = 532;
+        let size = 532;
         let mut cursor = Cursor::new(Vec::new());
-        cursor.write_u32::<BigEndian>(number).unwrap();
+        cursor.write_u32::<BigEndian>(size).unwrap();
 
-        let result = AcknowledgementMessage::deserialize(cursor.into_inner()).unwrap();        
-        let expected = AcknowledgementMessage { sequence_number: number };
+        let result = WindowAcknowledgementSizeMessage::deserialize(cursor.into_inner()).unwrap();        
+        let expected = WindowAcknowledgementSizeMessage { size: size };
         assert_eq!(expected, result);
     }
 
     #[test]
     fn gets_expected_type_id() {
-        let result = AcknowledgementMessage::get_type_id();
-        assert_eq!(3, result);
+        let result = WindowAcknowledgementSizeMessage::get_type_id();
+        assert_eq!(2, result);
     }
 }
