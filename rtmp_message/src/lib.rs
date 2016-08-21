@@ -4,6 +4,7 @@
 #[macro_use] extern crate quick_error;
 extern crate byteorder;
 extern crate rtmp_time;
+extern crate amf0;
 
 mod message_payload;
 mod known_message_type;
@@ -24,6 +25,7 @@ pub mod messages {
     mod set_chunk_size;
     mod window_acknowledgement_size;
     mod set_peer_bandwidth;
+    mod amf0_command;
 
     pub use self::abort::AbortMessage;
     pub use self::acknowledgement::AcknowledgementMessage;
@@ -32,4 +34,5 @@ pub mod messages {
     pub use self::set_chunk_size::SetChunkSizeMessage;
     pub use self::window_acknowledgement_size::WindowAcknowledgementSizeMessage;
     pub use self::set_peer_bandwidth::{SetPeerBandwidthMessage, PeerBandwidthLimitType};
+    pub use self::amf0_command::Amf0CommandMessage;
 }
