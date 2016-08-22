@@ -41,7 +41,7 @@ mod tests {
     use rtmp_message::RtmpMessage;
 
     #[test]
-    fn can_serialize_abort_message() {
+    fn can_serialize_message() {
         let id = 523;
         let message = AbortMessage { stream_id: id };
         let result = message.serialize().unwrap();

@@ -27,6 +27,7 @@ pub mod messages {
     mod set_peer_bandwidth;
     mod amf0_command;
     mod amf0_data;
+    mod user_control;
 
     pub use self::abort::AbortMessage;
     pub use self::acknowledgement::AcknowledgementMessage;
@@ -37,4 +38,5 @@ pub mod messages {
     pub use self::set_peer_bandwidth::{SetPeerBandwidthMessage, PeerBandwidthLimitType};
     pub use self::amf0_command::Amf0CommandMessage;
     pub use self::amf0_data::Amf0DataMessage;
+    pub use self::user_control::{UserControlMessage, UserControlEventType};
 }
