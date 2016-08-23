@@ -1,6 +1,7 @@
 //! This module handles the serialization and deserialization of 
 //! RTMP chunks.
 
+#[macro_use] extern crate log;
 #[macro_use] extern crate quick_error;
 extern crate byteorder;
 extern crate rtmp_time;

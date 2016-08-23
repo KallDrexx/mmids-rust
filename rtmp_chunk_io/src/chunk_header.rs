@@ -1,6 +1,6 @@
 use rtmp_time::RtmpTimestamp;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum ChunkHeaderFormat {
     Full, // Format 0
     TimeDeltaWithoutMessageStreamId, // Format 1

@@ -128,7 +128,11 @@ fn get_csid_for_message_type(message_type_id: u8) -> u32 {
 }
 
 fn add_basic_header(bytes: &mut Write, format: &ChunkHeaderFormat, csid: u32) -> Result<(), SerializationError> {
-    debug_assert!(csid >= 1, "csid cannot be 0 or 1");
+    if csid <= 1 || csid >= 65600 {
+        error!("Attempted to serialize an RTMP chunk with a csid of {}, but only csids between 2 and 65600 are allowed", csid);
+    }
+
+    debug_assert!(csid > 1, "csid cannot be 0 or 1");
     debug_assert!(csid < 65600, "csid {} is above the max of 65599", csid);
     
     let format_mask = match *format {
