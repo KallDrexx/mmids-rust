@@ -1,117 +1,239 @@
-use std::mem;
 use rtmp_time::RtmpTimestamp;
+use amf0::Amf0Value;
 
 use errors::{MessageDeserializationError, MessageSerializationError};
-use MessagePayload;
-
-pub trait RtmpMessage : Sized {
-    fn deserialize(Vec<u8>) -> Result<Self, MessageDeserializationError>;
-    fn serialize(self) -> Result<Vec<u8>, MessageSerializationError>;
-    fn get_type_id() -> u8;
-}
 
 #[derive(Eq, PartialEq, Debug)]
-pub struct RtmpMessageDetails<T: RtmpMessage> {
-    pub rtmp_timestamp: RtmpTimestamp,
-    pub stream_id: u32,
-    pub message: T
+pub enum PeerBandwidthLimitType { Hard, Soft, Dynamic }
+
+#[derive(Eq, PartialEq, Debug)]
+pub enum UserControlEventType {
+    StreamBegin,
+    StreamEof,
+    StreamDry,
+    SetBufferLength,
+    StreamIsRecorded,
+    PingRequest,
+    PingResponse
 }
 
-impl<T: RtmpMessage> RtmpMessageDetails<T> {
-    pub fn from_payload(mut payload: MessagePayload) -> Result<Self, MessageDeserializationError> {
-        let data = mem::replace(&mut payload.data, vec![]);
-        let message = try!(T::deserialize(data));
+#[derive(PartialEq, Debug)]
+pub enum RtmpMessage {
+    Unknown { type_id: u8, data: Vec<u8> },
+    Abort { stream_id: u32 },
+    Acknowledgement { sequence_number: u32 },
+    Amf0Command { command_name: String, transaction_id: f64, command_object: Amf0Value, additional_arguments: Vec<Amf0Value> },
+    Amf0Data { values: Vec<Amf0Value> },
+    AudioData { data: Vec<u8> },
+    SetChunkSize { size: u32 },
+    SetPeerBandwidth { size: u32, limit_type: PeerBandwidthLimitType },
+    UserControl { event_type: UserControlEventType, stream_id: Option<u32>, buffer_length: Option<u32>, timestamp: Option<RtmpTimestamp> },
+    VideoData { data: Vec<u8> },
+    WindowAcknowledgement { size: u32 }
+}
 
-        Ok(RtmpMessageDetails {
-            rtmp_timestamp: payload.timestamp,
-            stream_id: payload.stream_id,
-            message: message
-        })
+#[derive(PartialEq, Debug)]
+pub struct RawRtmpMessage {
+    pub data: Vec<u8>,
+    pub type_id: u8
+}
+
+impl RtmpMessage {
+    pub fn serialize(message: RtmpMessage) -> Result<RawRtmpMessage, MessageSerializationError> {
+        match message {
+            RtmpMessage::Unknown { type_id, data } => Ok(RawRtmpMessage { type_id: type_id, data: data }),
+            RtmpMessage::Abort { stream_id: _ } => unimplemented!(),
+            RtmpMessage::Acknowledgement { sequence_number: _ } => unimplemented!(),
+            RtmpMessage::Amf0Command { command_name: _, transaction_id: _, command_object: _, additional_arguments: _ } => unimplemented!(),
+            RtmpMessage::Amf0Data { values: _ } => unimplemented!(),
+            RtmpMessage::AudioData { data: _ } => unimplemented!(),
+            RtmpMessage::SetChunkSize { size: _ } => unimplemented!(),
+            RtmpMessage::SetPeerBandwidth { size: _, limit_type: _ } => unimplemented!(),
+            RtmpMessage::UserControl { event_type: _, stream_id: _, buffer_length: _, timestamp: _ } => unimplemented!(),
+            RtmpMessage::VideoData { data: _ } => unimplemented!(),
+            RtmpMessage::WindowAcknowledgement { size: _ } => unimplemented!()
+        }
     }
 
-    pub fn to_payload(self) -> Result<MessagePayload, MessageSerializationError> {
-        let timestamp = self.rtmp_timestamp;
-        let stream_id = self.stream_id;
-        let data = try!(T::serialize(self.message));
-        let type_id = T::get_type_id();
-
-        Ok(MessagePayload {
-            timestamp: timestamp,
-            stream_id: stream_id,
-            type_id: type_id,
-            data: data
-        })
+    pub fn deserialize(bytes: Vec<u8>, type_id: u8) -> Result<Self, MessageDeserializationError> {
+        match type_id {
+            _ => Ok(RtmpMessage::Unknown { type_id: type_id, data: bytes })
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use rtmp_time::RtmpTimestamp;
+    use super::{RtmpMessage, RawRtmpMessage};
 
-    use errors::{MessageDeserializationError, MessageSerializationError};
-    use MessagePayload;
-    use super::*;
+    use std::io::Cursor;
+    use std::collections::HashMap;
+    use byteorder::{BigEndian, WriteBytesExt};
+    use amf0::Amf0Value;
+    use amf0;
 
-    const TYPE_ID: u8 = 254;
+    #[test]
+    fn can_serialize_unknown_message() {
+        let message = RtmpMessage::Unknown { type_id: 29, data: vec![1,2,3,4] };
+        let expected = RawRtmpMessage { type_id: 29, data: vec![1,2,3,4] };
 
-    #[derive(Eq, PartialEq, Debug)]
-    struct TestMessage {
-        data: Vec<u8>
-    }
+        let result = RtmpMessage::serialize(message).unwrap();
 
-    impl RtmpMessage for TestMessage {
-        fn deserialize(data: Vec<u8>) -> Result<Self, MessageDeserializationError> {
-            Ok(TestMessage { data: data })
-        }
-
-        fn serialize(self) -> Result<Vec<u8>, MessageSerializationError> {
-            Ok(self.data)
-        }
-
-        fn get_type_id() -> u8 {
-            TYPE_ID
-        }
+        assert_eq!(expected, result);
     }
 
     #[test]
-    fn can_get_details_from_payload() {
-        let stream_id = 12;
-
-        let payload = MessagePayload {
-            timestamp: RtmpTimestamp::new(5),
-            stream_id: stream_id,
-            type_id: TYPE_ID,
-            data: vec![1,2,3,4,5]
-        };
-
-        let expected = RtmpMessageDetails {
-            rtmp_timestamp: RtmpTimestamp::new(5),
-            stream_id: stream_id,
-            message: TestMessage { data: vec![1,2,3,4,5] }
-        };
-
-        let result = RtmpMessageDetails::from_payload(payload).unwrap();
-        assert_eq!(result, expected);
+    fn can_deserialize_unknown_message() {
+        let id = 255;
+        let expected = RtmpMessage::Unknown { type_id: id, data: vec![1,2,3,4] };
+        let result = RtmpMessage::deserialize(vec![1,2,3,4], id).unwrap();        
+        assert_eq!(expected, result);
     }
 
     #[test]
-    fn can_get_payload_from_details() {
-        let stream_id = 12;
+    fn can_serialize_abort_message() {
+        let id = 523;
+        let message = RtmpMessage::Abort { stream_id: id };
+        let result = RtmpMessage::serialize(message).unwrap();
 
-        let details = RtmpMessageDetails {
-            rtmp_timestamp: RtmpTimestamp::new(5),
-            stream_id: stream_id,
-            message: TestMessage { data: vec![1,2,3,4,5] }
+        let mut cursor = Cursor::new(Vec::new());
+        cursor.write_u32::<BigEndian>(id).unwrap();
+        let expected = RawRtmpMessage { type_id: 2, data: cursor.into_inner() };
+
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn can_deserialize_abort_message() {
+        let id = 532;
+        let mut cursor = Cursor::new(Vec::new());
+        cursor.write_u32::<BigEndian>(id).unwrap();
+
+        let expected = RtmpMessage::Abort{stream_id: id};
+
+        let result = RtmpMessage::deserialize(cursor.into_inner(), 2).unwrap();        
+        
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn can_serialize_acknowledgement_message() {
+        let number = 523;
+        let message = RtmpMessage::Acknowledgement { sequence_number: number };
+
+        let result = RtmpMessage::serialize(message).unwrap();
+
+        let mut cursor = Cursor::new(Vec::new());
+        cursor.write_u32::<BigEndian>(number).unwrap();
+        let expected = RawRtmpMessage { type_id: 3, data: cursor.into_inner() };
+
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn can_deserialize_acknowledgement_message() {
+        let number = 532;
+        let mut cursor = Cursor::new(Vec::new());
+        cursor.write_u32::<BigEndian>(number).unwrap();
+
+        let result = RtmpMessage::deserialize(cursor.into_inner(), 3).unwrap();
+
+        let expected = RtmpMessage::Acknowledgement { sequence_number: number };
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn can_serialize_amf0_command_message() {
+        let mut properties1 = HashMap::new();
+        properties1.insert("prop1".to_string(), Amf0Value::Utf8String("abc".to_string()));
+        properties1.insert("prop2".to_string(), Amf0Value::Null);
+
+        let mut properties2 = HashMap::new();
+        properties2.insert("prop1".to_string(), Amf0Value::Utf8String("abc".to_string()));
+        properties2.insert("prop2".to_string(), Amf0Value::Null);  
+
+        let message = RtmpMessage::Amf0Command {
+            command_name: "test".to_string(),
+            transaction_id: 23.0,
+            command_object: Amf0Value::Object(properties1),
+            additional_arguments: vec![Amf0Value::Boolean(true), Amf0Value::Number(52.0)]
         };
 
-        let expected = MessagePayload {
-            timestamp: RtmpTimestamp::new(5),
-            stream_id: stream_id,
-            type_id: TYPE_ID,
-            data: vec![1,2,3,4,5]
+        let raw_message = RtmpMessage::serialize(message).unwrap();
+        let mut cursor = Cursor::new(raw_message.data);
+        let result = amf0::deserialize(&mut cursor).unwrap();        
+
+        let expected = vec![
+            Amf0Value::Utf8String("test".to_string()),
+            Amf0Value::Number(23.0),
+            Amf0Value::Object(properties2),
+            Amf0Value::Boolean(true),
+            Amf0Value::Number(52.0)
+        ];
+
+        assert_eq!(expected, result);
+        assert_eq!(20, raw_message.type_id);
+    }
+
+    #[test]
+    fn can_deserialize_amf0_command_message() {
+        let mut properties1 = HashMap::new();
+        properties1.insert("prop1".to_string(), Amf0Value::Utf8String("abc".to_string()));
+        properties1.insert("prop2".to_string(), Amf0Value::Null);
+
+        let mut properties2 = HashMap::new();
+        properties2.insert("prop1".to_string(), Amf0Value::Utf8String("abc".to_string()));
+        properties2.insert("prop2".to_string(), Amf0Value::Null);        
+
+        let values = vec![
+            Amf0Value::Utf8String("test".to_string()),
+            Amf0Value::Number(23.0),
+            Amf0Value::Object(properties1),
+            Amf0Value::Boolean(true),
+            Amf0Value::Number(52.0)
+        ];
+
+        let bytes = amf0::serialize(&values).unwrap();
+        
+        let expected = RtmpMessage::Amf0Command {
+            command_name: "test".to_string(),
+            transaction_id: 23.0,
+            command_object: Amf0Value::Object(properties2),
+            additional_arguments: vec![Amf0Value::Boolean(true), Amf0Value::Number(52.0)]
         };
 
-        let result = details.to_payload().unwrap();
-        assert_eq!(result, expected);
+        let result = RtmpMessage::deserialize(bytes, 20).unwrap();
+
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn can_serialize_amf0_data_message() {
+        let message = RtmpMessage::Amf0Data {
+            values: vec![Amf0Value::Boolean(true), Amf0Value::Number(52.0)]
+        };
+
+        let raw_message = RtmpMessage::serialize(message).unwrap();
+
+        let mut cursor = Cursor::new(raw_message.data);
+        let result = amf0::deserialize(&mut cursor).unwrap();
+        let expected = vec![Amf0Value::Boolean(true), Amf0Value::Number(52.0)];
+
+        assert_eq!(expected, result);
+        assert_eq!(18, raw_message.type_id);
+    }
+
+    #[test]
+    fn can_deserialize_amf0_data_message() {
+        let values = vec![Amf0Value::Boolean(true), Amf0Value::Number(52.0)];
+        let bytes = amf0::serialize(&values).unwrap();
+
+        let result = RtmpMessage::deserialize(bytes, 18).unwrap();
+
+        let expected = RtmpMessage::Amf0Data {
+            values: vec![Amf0Value::Boolean(true), Amf0Value::Number(52.0)]
+        };
+
+        assert_eq!(expected, result);
     }
 }
