@@ -80,3 +80,16 @@ pub use errors::MessageSerializationError;
 pub use errors::MessageDeserializationError;
 pub use rtmp_message::RtmpMessage;
 pub use rtmp_message_details::RtmpMessageDetails;
+
+mod messages {
+    mod abort;
+    mod acknowledgement;
+    mod amf0_command;
+    mod amf0_data;
+    mod audio_data;
+    mod set_chunk_size;
+    mod set_peer_bandwidth;
+    mod user_control;
+    mod video_data;
+    mod window_acknowledgement_size;
+}
