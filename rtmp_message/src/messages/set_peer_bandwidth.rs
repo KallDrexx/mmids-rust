@@ -1,4 +1,41 @@
+use std::io::Cursor;
+use byteorder::{BigEndian, WriteBytesExt, ReadBytesExt};
 
+use errors::{MessageDeserializationError, MessageSerializationError};
+use rtmp_message::{RtmpMessage, RawRtmpMessage, PeerBandwidthLimitType};
+
+pub fn serialize(limit_type: PeerBandwidthLimitType, size: u32) -> Result<RawRtmpMessage, MessageSerializationError> {
+    let type_id = match limit_type {
+        PeerBandwidthLimitType::Hard => 0,
+        PeerBandwidthLimitType::Soft => 1,
+        PeerBandwidthLimitType::Dynamic => 2
+    };
+
+    let mut cursor = Cursor::new(Vec::new());
+    try!(cursor.write_u32::<BigEndian>(size));
+    try!(cursor.write_u8(type_id));
+
+    Ok(RawRtmpMessage{ 
+        data: cursor.into_inner(),
+        type_id: 6
+    })
+}
+
+pub fn deserialize(data: Vec<u8>) -> Result<RtmpMessage, MessageDeserializationError> {
+    let mut cursor = Cursor::new(data);
+    let size = try!(cursor.read_u32::<BigEndian>());
+    let limit_type = match try!(cursor.read_u8()) {
+        0 => PeerBandwidthLimitType::Hard,
+        1 => PeerBandwidthLimitType::Soft,
+        2 => PeerBandwidthLimitType::Dynamic,
+        _ => return Err(MessageDeserializationError::InvalidMessageFormat)
+    };
+
+    Ok(RtmpMessage::SetPeerBandwidth {
+        size: size,
+        limit_type: limit_type
+    })
+}
 
 #[cfg(test)]
 mod tests {

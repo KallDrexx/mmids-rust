@@ -1,3 +1,27 @@
+use std::io::Cursor;
+use byteorder::{BigEndian, WriteBytesExt, ReadBytesExt};
+
+use errors::{MessageDeserializationError, MessageSerializationError};
+use rtmp_message::{RtmpMessage, RawRtmpMessage};
+
+pub fn serialize(sequence_number: u32) -> Result<RawRtmpMessage, MessageSerializationError> {
+    let mut cursor = Cursor::new(Vec::new());
+    try!(cursor.write_u32::<BigEndian>(sequence_number));
+
+    Ok(RawRtmpMessage{ 
+        data: cursor.into_inner(),
+        type_id: 3
+    })
+}
+
+pub fn deserialize(data: Vec<u8>) -> Result<RtmpMessage, MessageDeserializationError> {
+    let mut cursor = Cursor::new(data);
+    let stream_id = try!(cursor.read_u32::<BigEndian>());
+
+    Ok(RtmpMessage::Acknowledgement {
+        sequence_number: stream_id
+    })
+}
 
 #[cfg(test)]
 mod tests {

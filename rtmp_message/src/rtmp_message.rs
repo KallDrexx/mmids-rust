@@ -2,6 +2,7 @@ use rtmp_time::RtmpTimestamp;
 use amf0::Amf0Value;
 
 use errors::{MessageDeserializationError, MessageSerializationError};
+use messages;
 
 #[derive(Eq, PartialEq, Debug)]
 pub enum PeerBandwidthLimitType { Hard, Soft, Dynamic }
@@ -41,22 +42,53 @@ pub struct RawRtmpMessage {
 impl RtmpMessage {
     pub fn serialize(self) -> Result<RawRtmpMessage, MessageSerializationError> {
         match self {
-            RtmpMessage::Unknown { type_id, data } => Ok(RawRtmpMessage { type_id: type_id, data: data }),
-            RtmpMessage::Abort { stream_id: _ } => unimplemented!(),
-            RtmpMessage::Acknowledgement { sequence_number: _ } => unimplemented!(),
-            RtmpMessage::Amf0Command { command_name: _, transaction_id: _, command_object: _, additional_arguments: _ } => unimplemented!(),
-            RtmpMessage::Amf0Data { values: _ } => unimplemented!(),
-            RtmpMessage::AudioData { data: _ } => unimplemented!(),
-            RtmpMessage::SetChunkSize { size: _ } => unimplemented!(),
-            RtmpMessage::SetPeerBandwidth { size: _, limit_type: _ } => unimplemented!(),
-            RtmpMessage::UserControl { event_type: _, stream_id: _, buffer_length: _, timestamp: _ } => unimplemented!(),
-            RtmpMessage::VideoData { data: _ } => unimplemented!(),
-            RtmpMessage::WindowAcknowledgement { size: _ } => unimplemented!()
+            RtmpMessage::Unknown { type_id, data } 
+                => Ok(RawRtmpMessage { type_id: type_id, data: data }),
+
+            RtmpMessage::Abort { stream_id } 
+                => messages::abort::serialize(stream_id),
+
+            RtmpMessage::Acknowledgement { sequence_number } 
+                => messages::acknowledgement::serialize(sequence_number),
+
+            RtmpMessage::Amf0Command { command_name, transaction_id, command_object, additional_arguments } 
+                => messages::amf0_command::serialize(command_name, transaction_id, command_object, additional_arguments),
+                
+            RtmpMessage::Amf0Data { values }  
+                => messages::amf0_data::serialize(values),
+
+            RtmpMessage::AudioData { data }  
+                => messages::audio_data::serialize(data),
+
+            RtmpMessage::SetChunkSize { size }  
+                => messages::set_chunk_size::serialize(size),
+
+            RtmpMessage::SetPeerBandwidth { size, limit_type }  
+                => messages::set_peer_bandwidth::serialize(limit_type, size),
+
+            RtmpMessage::UserControl { event_type, stream_id, buffer_length, timestamp }  
+                => messages::user_control::serialize(event_type, stream_id, buffer_length, timestamp),
+
+            RtmpMessage::VideoData { data }  
+                => messages::video_data::serialize(data),
+
+            RtmpMessage::WindowAcknowledgement { size }  
+                => messages::window_acknowledgement_size::serialize(size),
         }
     }
 
     pub fn deserialize(bytes: Vec<u8>, type_id: u8) -> Result<Self, MessageDeserializationError> {
         match type_id {
+            1 => messages::set_chunk_size::deserialize(bytes),
+            2 => messages::abort::deserialize(bytes),
+            3 => messages::acknowledgement::deserialize(bytes),
+            4 => messages::user_control::deserialize(bytes),
+            5 => messages::window_acknowledgement_size::deserialize(bytes),
+            6 => messages::set_peer_bandwidth::deserialize(bytes),
+            8 => messages::audio_data::deserialize(bytes),
+            9 => messages::video_data::deserialize(bytes),
+            18 => messages::amf0_data::deserialize(bytes),
+            20 => messages::amf0_command::deserialize(bytes),
             _ => Ok(RtmpMessage::Unknown { type_id: type_id, data: bytes })
         }
     }

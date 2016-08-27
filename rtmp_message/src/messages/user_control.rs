@@ -1,4 +1,110 @@
+use std::io::{Write, Cursor};
+use byteorder::{BigEndian, WriteBytesExt, ReadBytesExt};
+use rtmp_time::RtmpTimestamp;
 
+use errors::{MessageDeserializationError, MessageSerializationError};
+use rtmp_message::{RtmpMessage, RawRtmpMessage, UserControlEventType};
+
+pub fn serialize(event_type: UserControlEventType, 
+                    stream_id: Option<u32>, 
+                    buffer_length: Option<u32>, 
+                    timestamp: Option<RtmpTimestamp>) -> Result<RawRtmpMessage, MessageSerializationError> {
+    let mut cursor = Cursor::new(Vec::new());
+    match event_type {
+        UserControlEventType::StreamBegin => try!(write_stream_event(&mut cursor, 0, stream_id)),
+        UserControlEventType::StreamEof => try!(write_stream_event(&mut cursor, 1, stream_id)),
+        UserControlEventType::StreamDry => try!(write_stream_event(&mut cursor, 2, stream_id)),
+        UserControlEventType::SetBufferLength => try!(write_length_event(&mut cursor, 3, stream_id, buffer_length)),
+        UserControlEventType::StreamIsRecorded => try!(write_stream_event(&mut cursor, 4, stream_id)),
+        UserControlEventType::PingRequest => try!(write_timestamp_event(&mut cursor, 6, timestamp)),
+        UserControlEventType::PingResponse => try!(write_timestamp_event(&mut cursor, 7, timestamp))
+    };
+
+    Ok(RawRtmpMessage{ 
+        data: cursor.into_inner(),
+        type_id: 4
+    })
+}
+
+pub fn deserialize(data: Vec<u8>) -> Result<RtmpMessage, MessageDeserializationError> {
+    let mut cursor = Cursor::new(data);
+        let event_type = match try!(cursor.read_u16::<BigEndian>()) {
+            0 => UserControlEventType::StreamBegin,
+            1 => UserControlEventType::StreamEof,
+            2 => UserControlEventType::StreamDry,
+            3 => UserControlEventType::SetBufferLength,
+            4 => UserControlEventType::StreamIsRecorded,
+            6 => UserControlEventType::PingRequest,
+            7 => UserControlEventType::PingResponse,
+            _ => return Err(MessageDeserializationError::InvalidMessageFormat)
+        };
+
+        let mut stream_id = None;
+        let mut buffer_length = None;
+        let mut timestamp = None;
+
+        match event_type {
+            UserControlEventType::StreamBegin => stream_id = Some(try!(cursor.read_u32::<BigEndian>())),
+            UserControlEventType::StreamEof => stream_id = Some(try!(cursor.read_u32::<BigEndian>())),
+            UserControlEventType::StreamDry => stream_id = Some(try!(cursor.read_u32::<BigEndian>())),
+            UserControlEventType::StreamIsRecorded => stream_id = Some(try!(cursor.read_u32::<BigEndian>())),
+            UserControlEventType::PingRequest => timestamp = Some(RtmpTimestamp::new(try!(cursor.read_u32::<BigEndian>()))),
+            UserControlEventType::PingResponse => timestamp = Some(RtmpTimestamp::new(try!(cursor.read_u32::<BigEndian>()))),
+            UserControlEventType::SetBufferLength => {
+                stream_id = Some(try!(cursor.read_u32::<BigEndian>()));
+                buffer_length = Some(try!(cursor.read_u32::<BigEndian>()));
+            }
+        }
+        
+        Ok(RtmpMessage::UserControl {
+            event_type: event_type,
+            stream_id: stream_id,
+            buffer_length: buffer_length,
+            timestamp: timestamp
+        })
+}
+
+fn write_stream_event<W: Write>(bytes: &mut W, event_id: u16, stream_id: Option<u32>) -> Result<(), MessageSerializationError> {
+    debug_assert!(stream_id.is_some(), "Stream event attempted to be serialized with a None stream id!");
+
+    try!(bytes.write_u16::<BigEndian>(event_id));
+    match stream_id {
+        Some(x) => try!(bytes.write_u32::<BigEndian>(x)),
+        None => try!(bytes.write_u32::<BigEndian>(0))
+    };
+
+    Ok(())
+}
+
+fn write_length_event<W: Write>(bytes: &mut W, event_id: u16, stream_id: Option<u32>, length: Option<u32>) -> Result<(), MessageSerializationError> {
+    debug_assert!(stream_id.is_some(), "Buffer length event attempted to be serialized with a None stream id!");
+    debug_assert!(length.is_some(), "Buffer length event attempted to be serialized with a None length value!");
+
+    try!(bytes.write_u16::<BigEndian>(event_id));
+    match stream_id {
+        Some(x) => try!(bytes.write_u32::<BigEndian>(x)),
+        None => try!(bytes.write_u32::<BigEndian>(0))
+    };
+
+    match length {
+        Some(x) => try!(bytes.write_u32::<BigEndian>(x)),
+        None => try!(bytes.write_u32::<BigEndian>(0))
+    };
+
+    Ok(())
+}
+
+fn write_timestamp_event<W: Write>(bytes: &mut W, event_id: u16, timestamp: Option<RtmpTimestamp>) -> Result<(), MessageSerializationError> {
+    debug_assert!(timestamp.is_some(), "Timestamp event attempted to be serialized with a None timestamp");
+
+    try!(bytes.write_u16::<BigEndian>(event_id));
+    match timestamp {
+        Some(x) => try!(bytes.write_u32::<BigEndian>(x.value)),
+        None => try!(bytes.write_u32::<BigEndian>(0))
+    };
+
+    Ok(())
+}
 
 #[cfg(test)]
 mod tests {

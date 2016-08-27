@@ -1,4 +1,27 @@
+use std::io::Cursor;
+use amf0;
+use amf0::Amf0Value;
 
+use errors::{MessageDeserializationError, MessageSerializationError};
+use rtmp_message::{RtmpMessage, RawRtmpMessage};
+
+pub fn serialize(values: Vec<Amf0Value>) -> Result<RawRtmpMessage, MessageSerializationError> {
+    let bytes = try!(amf0::serialize(&values)); 
+
+    Ok(RawRtmpMessage{ 
+        data: bytes,
+        type_id: 18
+    })
+}
+
+pub fn deserialize(data: Vec<u8>) -> Result<RtmpMessage, MessageDeserializationError> {
+    let mut cursor = Cursor::new(data);
+    let values = try!(amf0::deserialize(&mut cursor));
+
+    Ok(RtmpMessage::Amf0Data {
+        values: values
+    })
+}
 
 #[cfg(test)]
 mod tests {

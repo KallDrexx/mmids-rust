@@ -1,4 +1,18 @@
+use errors::{MessageDeserializationError, MessageSerializationError};
+use rtmp_message::{RtmpMessage, RawRtmpMessage};
 
+pub fn serialize(data: Vec<u8>) -> Result<RawRtmpMessage, MessageSerializationError> {
+    Ok(RawRtmpMessage{ 
+        data: data,
+        type_id: 8
+    })
+}
+
+pub fn deserialize(data: Vec<u8>) -> Result<RtmpMessage, MessageDeserializationError> {
+    Ok(RtmpMessage::AudioData {
+        data: data
+    })
+}
 
 #[cfg(test)]
 mod tests {

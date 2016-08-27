@@ -1,3 +1,18 @@
+use errors::{MessageDeserializationError, MessageSerializationError};
+use rtmp_message::{RtmpMessage, RawRtmpMessage};
+
+pub fn serialize(bytes: Vec<u8>) -> Result<RawRtmpMessage, MessageSerializationError> {
+    Ok(RawRtmpMessage{ 
+        data: bytes,
+        type_id: 9
+    })
+}
+
+pub fn deserialize(data: Vec<u8>) -> Result<RtmpMessage, MessageDeserializationError> {
+    Ok(RtmpMessage::VideoData {
+        data: data
+    })
+}
 
 #[cfg(test)]
 mod tests {

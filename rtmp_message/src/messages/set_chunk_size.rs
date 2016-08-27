@@ -1,4 +1,37 @@
+use std::io::Cursor;
+use byteorder::{BigEndian, WriteBytesExt, ReadBytesExt};
 
+use errors::{MessageDeserializationError, MessageSerializationError};
+use rtmp_message::{RtmpMessage, RawRtmpMessage};
+
+const MAX_SIZE: u32 = 0x80000000 - 1;
+
+pub fn serialize(size: u32) -> Result<RawRtmpMessage, MessageSerializationError> {
+    if size > MAX_SIZE {
+        return Err(MessageSerializationError::InvalidChunkSize);
+    }
+
+    let mut cursor = Cursor::new(Vec::new());
+    try!(cursor.write_u32::<BigEndian>(size));
+
+    Ok(RawRtmpMessage{ 
+        data: cursor.into_inner(),
+        type_id: 1
+    })
+}
+
+pub fn deserialize(data: Vec<u8>) -> Result<RtmpMessage, MessageDeserializationError> {
+    let mut cursor = Cursor::new(data);
+    let size = try!(cursor.read_u32::<BigEndian>());
+
+    if size > MAX_SIZE {
+        return Err(MessageDeserializationError::InvalidMessageFormat);
+    }
+
+    Ok(RtmpMessage::SetChunkSize {
+        size: size
+    })
+}
 
 #[cfg(test)]
 mod tests {

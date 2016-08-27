@@ -10,8 +10,7 @@
 //!
 //! use rtmp_time::RtmpTimestamp;
 //!
-//! use rtmp_message::{MessagePayload, KnownMessageType, RtmpMessageDetails};
-//! use rtmp_message::messages::SetChunkSizeMessage;
+//! use rtmp_message::{MessagePayload, RtmpMessageDetails, RtmpMessage};
 //! 
 //! # fn main() { 
 //!
@@ -22,13 +21,11 @@
 //!     data: vec![0, 0, 0, 128]
 //! };
 //!
-//! assert_eq!(payload.get_message_type(), Some(KnownMessageType::SetChunkSize));
-//!
-//! let details = RtmpMessageDetails::<SetChunkSizeMessage>::from_payload(payload).unwrap();
+//! let details = RtmpMessageDetails::from_payload(payload).unwrap();
 //! 
 //! assert_eq!(details.rtmp_timestamp, RtmpTimestamp::new(5));
 //! assert_eq!(details.stream_id, 5);
-//! assert_eq!(details.message, SetChunkSizeMessage { size: 128 });
+//! assert_eq!(details.message, RtmpMessage::SetChunkSize { size: 128 });
 //!
 //! # }
 //! ```
@@ -41,15 +38,13 @@
 //!
 //! use rtmp_time::RtmpTimestamp;
 //!
-//! use rtmp_message::{MessagePayload, KnownMessageType, RtmpMessageDetails};
-//! use rtmp_message::messages::SetChunkSizeMessage;
+//! use rtmp_message::{MessagePayload, RtmpMessage, RtmpMessageDetails};
 //! 
 //! # fn main() { 
-//! let message = SetChunkSizeMessage { size: 128 };
 //! let details = RtmpMessageDetails {
 //!     rtmp_timestamp: RtmpTimestamp::new(5),
 //!     stream_id: 5,
-//!     message: message    
+//!     message: RtmpMessage::SetChunkSize { size: 128 }    
 //! };
 //!
 //! let payload = details.to_payload().unwrap();
@@ -82,14 +77,16 @@ pub use rtmp_message::RtmpMessage;
 pub use rtmp_message_details::RtmpMessageDetails;
 
 mod messages {
-    mod abort;
-    mod acknowledgement;
-    mod amf0_command;
-    mod amf0_data;
-    mod audio_data;
-    mod set_chunk_size;
-    mod set_peer_bandwidth;
-    mod user_control;
-    mod video_data;
-    mod window_acknowledgement_size;
+    pub mod abort;
+    pub mod acknowledgement;
+    pub mod amf0_command;
+    pub mod amf0_data;
+    pub mod audio_data;
+    pub mod set_chunk_size;
+    pub mod set_peer_bandwidth;
+    pub mod user_control;
+    pub mod video_data;
+    pub mod window_acknowledgement_size;
+
+
 }
