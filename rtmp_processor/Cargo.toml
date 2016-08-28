@@ -1,0 +1,9 @@
+[package]
+name = "rtmp_processor"
+version = "0.1.0"
+authors = ["KallDrexx <me@mshapiro.net>"]
+
+[dependencies]
+amf0 = { path = "../amf0" }
+rtmp_message = { path = "../rtmp_message" }
+rtmp_time = { path = "../rtmp_time" }

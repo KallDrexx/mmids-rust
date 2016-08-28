@@ -73,7 +73,7 @@ pub use message_payload::MessagePayload;
 pub use known_message_type::KnownMessageType;
 pub use errors::MessageSerializationError;
 pub use errors::MessageDeserializationError;
-pub use rtmp_message::RtmpMessage;
+pub use rtmp_message::{RtmpMessage, UserControlEventType};
 pub use rtmp_message_details::RtmpMessageDetails;
 
 mod messages {
@@ -87,6 +87,4 @@ mod messages {
     pub mod user_control;
     pub mod video_data;
     pub mod window_acknowledgement_size;
-
-
 }
