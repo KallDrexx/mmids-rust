@@ -30,7 +30,7 @@ impl RtmpProcessor {
         }
     }
 
-    pub fn handle(messages: Vec<RtmpMessageDetails>) -> ProcessorResult {
+    pub fn handle(&mut self, _messages: Vec<RtmpMessageDetails>) -> ProcessorResult {
         unimplemented!()
     }
 
@@ -54,5 +54,74 @@ impl RtmpProcessor {
     /// has been rejected
     pub fn reject_request(&mut self, _request_id: u32) -> ProcessorResult {
         unimplemented!()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rtmp_message::RtmpMessage;
+
+    use events::ProcessorEvent;
+    use super::*;
+    use tests::utils;
+
+    #[test]
+    fn self_chunk_size() {
+        let mut processor = RtmpProcessor::new();
+        let result = processor.set_chunk_size(4096);
+
+        assert_eq!(result.events.len(), 1);
+        assert_eq!(result.events[0], ProcessorEvent::SelfChunkSizeChanged{ new_chunk_size: 4096 });
+        assert_eq!(result.messages.len(), 1);
+        assert_eq!(result.messages[0].stream_id, 0);
+        assert_eq!(result.messages[0].message, RtmpMessage::SetChunkSize{size: 4096});
+    }
+    
+    #[test]
+    fn self_window_ack_size() {
+        let mut processor = RtmpProcessor::new();
+        let result = processor.set_window_ack_size(1048576);
+
+        assert_eq!(result.events.len(), 0);
+        assert_eq!(result.messages.len(), 1);
+        assert_eq!(result.messages[0].stream_id, 0);
+        assert_eq!(result.messages[0].message, RtmpMessage::WindowAcknowledgement{size: 1048576});
+    }
+
+    #[test]
+    fn peer_chunk_size() {
+        let mut processor = RtmpProcessor::new();
+        let result = processor.handle(vec![utils::create_set_chunk_size_message(4000)]);
+
+        assert_eq!(result.events.len(), 1);
+        assert_eq!(result.events[0], ProcessorEvent::PeerChunkSizeChanged{new_chunk_size: 4000});
+        assert_eq!(result.messages.len(), 0);
+    }
+
+    #[test]
+    fn peer_window_ack_size() {
+        let mut processor = RtmpProcessor::new();
+        let result = processor.handle(vec![utils::create_window_ack_message(5000000)]);
+
+        assert_eq!(result.events.len(), 0);
+        assert_eq!(result.messages.len(), 0);
+    }
+
+    #[test]
+    fn connection_command_received_and_accepted() {
+        let mut processor = RtmpProcessor::new();
+        let app_name = "myapp".to_string();
+        let command = utils::create_connect_command(app_name.clone());
+        let request_id;
+
+        let initial_result = processor.handle(vec![command]);
+        assert_eq!(initial_result.messages.len(), 0);
+        assert_eq!(initial_result.events.len(), 1);
+        assert_match!(initial_result.events[0], 
+            ProcessorEvent::ConnectionRequested { request_id: rid, application_name: ref name } if name == &app_name 
+            => {request_id = rid});
+
+        let accept_result = processor.accept_request(request_id);
+        
     }
 }

@@ -1,3 +1,4 @@
+#[derive(PartialEq, Debug)]
 pub struct StreamMetadata {
     pub video_width: Option<u32>,
     pub video_height: Option<u32>,
