@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["KallDrexx <me@mshapiro.net>"]
 
 [dependencies]
+quick-error = "1.1.0"
 amf0 = { path = "../amf0" }
 rtmp_message = { path = "../rtmp_message" }
 rtmp_time = { path = "../rtmp_time" }

@@ -73,7 +73,7 @@ pub use message_payload::MessagePayload;
 pub use known_message_type::KnownMessageType;
 pub use errors::MessageSerializationError;
 pub use errors::MessageDeserializationError;
-pub use rtmp_message::{RtmpMessage, UserControlEventType};
+pub use rtmp_message::{RtmpMessage, UserControlEventType, PeerBandwidthLimitType};
 pub use rtmp_message_details::RtmpMessageDetails;
 
 mod messages {

@@ -10,4 +10,5 @@ pub enum ProcessorEvent {
     StreamMetaDataChanged { application_name: String, stream_key: String, meta_data: StreamMetadata },
     AudioDataReceived { application_name: String, stream_key: String, data: Vec<u8> },
     VideoDataReceived { application_name: String, stream_key: String, data: Vec<u8> },
+    UnhandleableAmf0Command { command_name: String },
 }

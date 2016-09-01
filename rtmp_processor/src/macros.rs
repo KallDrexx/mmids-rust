@@ -93,17 +93,33 @@ macro_rules! assert_vec_match{
     ($vector:expr, $pattern:pat if $cond:expr, $($rest:tt)*) => {
         assert_vec_match!(@step 0usize, $vector, $pattern if $cond => (), $($rest)*);
     };
+
+    ($vector:expr, $pattern:pat if $cond:expr) => {
+        assert_vec_match!(@step 0usize, $vector, $pattern if $cond => ());
+    };
     
     ($vector:expr, $pattern:pat => $success:expr, $($rest:tt)*) => {
         assert_vec_match!(@step 0usize, $vector, $pattern if true => $success, $($rest)*);
     };
 
+    ($vector:expr, $pattern:pat => $success:expr) => {
+        assert_vec_match!(@step 0usize, $vector, $pattern if true => $success);
+    };
+
     ($vector:expr, $pattern:pat if $cond:expr => $success:expr, $($rest:tt)*) => {
         assert_vec_match!(@step 0usize, $vector, $pattern if $cond => $success, $($rest)*);
+    };
+
+    ($vector:expr, $pattern:pat if $cond:expr => $success:expr) => {
+        assert_vec_match!(@step 0usize, $vector, $pattern if $cond => $success);
     };
     
     ($vector:expr, $pattern:pat, $($rest:tt)*) => {
         assert_vec_match!(@step 0usize, $vector, $pattern if true => (), $($rest)*);
+    };
+    
+    ($vector:expr, $pattern:pat) => {
+        assert_vec_match!(@step 0usize, $vector, $pattern if true => ());
     };
     
     
