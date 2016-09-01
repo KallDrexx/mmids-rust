@@ -50,13 +50,13 @@ impl RtmpProcessor {
         }
     }
 
-    pub fn handle(&mut self, messages: Vec<RtmpMessageDetails>) -> Vec<ProcessorResult> {
+    pub fn handle(&mut self, messages: Vec<RtmpMessageDetails>) -> Result<Vec<ProcessorResult>, RtmpProcessorError> {
         let mut all_results = Vec::new();
 
         for details in messages.into_iter() {
             let mut message_results = match details.message {
                 RtmpMessage::Amf0Command{command_name, transaction_id, command_object, additional_arguments}
-                    => self.handle_amf0_command(details.stream_id, command_name, transaction_id, command_object, additional_arguments),
+                    => try!(self.handle_amf0_command(details.stream_id, command_name, transaction_id, command_object, additional_arguments)),
 
                 RtmpMessage::SetChunkSize{size} 
                     => self.handle_peer_chunk_size(size),
@@ -70,7 +70,7 @@ impl RtmpProcessor {
             all_results.append(&mut message_results);
         };
 
-        all_results
+        Ok(all_results)
     }
 
     /// Requests a new max size for messages to be sent
@@ -119,19 +119,34 @@ impl RtmpProcessor {
         command_name: String, 
         transaction_id: f64, 
         command_object: Amf0Value, 
-        _additional_arguments: Vec<Amf0Value>) -> Vec<ProcessorResult> {
+        _additional_arguments: Vec<Amf0Value>) -> Result<Vec<ProcessorResult>, RtmpProcessorError> {
             
         match command_name.as_ref() {
             "connect" => handle_connect_amf0_command(self, stream_id, transaction_id, command_object),
-            _ => handle_unknown_amf0_command(stream_id, command_name, transaction_id),
+            _ => Ok(handle_unknown_amf0_command(stream_id, command_name, transaction_id)),
         }
     }
 
-    fn get_next_request_id(&mut self) -> u32 {
-        let id = self.next_request_id.0;
-        self.next_request_id = self.next_request_id + Wrapping(1);
+    fn get_next_request_id(&mut self) -> Result<u32, RtmpProcessorError> {
+        let last_id = self.next_request_id - Wrapping(1);
+        let mut id = self.next_request_id;
+        
+        loop {
+            if !self.outstanding_requests.contains_key(&id.0) {
+                break;
+            }
+            
+            // Make sure we haven't gone through and all u32 id numbers are in use.  This
+            // should only happen if we are leaking keys
+            if id == last_id {
+                return Err(RtmpProcessorError::AllRequestIdsInUse);
+            }
+            
+            id = id + Wrapping(1);
+        }        
 
-        id
+        self.next_request_id = id + Wrapping(1);
+        Ok(id.0)
     }
 }
 
@@ -145,27 +160,27 @@ fn handle_unknown_amf0_command(stream_id: u32, command_name: String, transaction
 fn handle_connect_amf0_command(processor: &mut RtmpProcessor, 
     stream_id: u32,  
     transaction_id: f64, 
-    command_object: Amf0Value) -> Vec<ProcessorResult> {
+    command_object: Amf0Value) -> Result<Vec<ProcessorResult>, RtmpProcessorError> {
 
     let mut properties;
     match command_object {
         Amf0Value::Object(props) => properties = props,
-        _ => return vec![get_amf0_error_response(stream_id, transaction_id, Amf0Value::Null)]
+        _ => return Ok(vec![get_amf0_error_response(stream_id, transaction_id, Amf0Value::Null)])
     };
 
     let app_name = match properties.remove("app") {
         Some(Amf0Value::Utf8String(name)) => name,
-        Some(_) => return vec![get_amf0_error_response(stream_id, transaction_id, Amf0Value::Null)],
-        None => return vec![get_amf0_error_response(stream_id, transaction_id, Amf0Value::Null)],
+        Some(_) => return Ok(vec![get_amf0_error_response(stream_id, transaction_id, Amf0Value::Null)]),
+        None => return Ok(vec![get_amf0_error_response(stream_id, transaction_id, Amf0Value::Null)]),
     };
 
     let request = OutstandingRequest::Connection{app: app_name.clone()};
-    let request_id = processor.get_next_request_id();
+    let request_id = try!(processor.get_next_request_id());
 
     processor.outstanding_requests.insert(request_id, request);
     processor.current_state = ProcessorState::ConnectionRequested;
 
-    vec![
+    Ok(vec![
         ProcessorResult::ResponseMessage(RtmpMessageDetails {
             rtmp_timestamp: RtmpTimestamp::new(0),
             stream_id: 0,
@@ -182,7 +197,7 @@ fn handle_connect_amf0_command(processor: &mut RtmpProcessor,
             request_id: request_id,
             application_name: app_name
         })
-    ]
+    ])
 }
 
 fn accept_connection_request(processor: &mut RtmpProcessor, app_name: String) -> Vec<ProcessorResult> {
@@ -254,7 +269,7 @@ mod tests {
     #[test]
     fn peer_chunk_size() {
         let mut processor = RtmpProcessor::new(get_default_config());
-        let result = processor.handle(vec![utils::create_set_chunk_size_message(4000)]);
+        let result = processor.handle(vec![utils::create_set_chunk_size_message(4000)]).unwrap();
 
         assert_vec_match!(result,
             ProcessorResult::RaisedEvent(ProcessorEvent::PeerChunkSizeChanged{new_chunk_size: 4000})
@@ -264,7 +279,7 @@ mod tests {
     #[test]
     fn peer_window_ack_size() {
         let mut processor = RtmpProcessor::new(get_default_config());
-        let result = processor.handle(vec![utils::create_window_ack_message(5000000)]);
+        let result = processor.handle(vec![utils::create_window_ack_message(5000000)]).unwrap();
 
         assert_vec_match!(result); // should be empty
     }
@@ -282,7 +297,7 @@ mod tests {
         let command = utils::create_connect_command(app_name.clone());
         let request_id;
 
-        let initial_result = processor.handle(vec![command]);
+        let initial_result = processor.handle(vec![command]).unwrap();
         assert_vec_match!(initial_result,
             ProcessorResult::ResponseMessage(RtmpMessageDetails {
                 rtmp_timestamp: _,
